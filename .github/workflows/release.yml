@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build a portable package for
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -10,8 +16,12 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/setup-node@v6
         with:
           node-version: 22
@@ -22,12 +32,27 @@ jobs:
           workspaces: src-tauri
       - run: npm ci
       - uses: tauri-apps/tauri-action@v1
+        if: github.event_name == 'push'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Steam Throttle ${{ github.ref_name }}
+          tagName: ${{ env.RELEASE_TAG }}
+          releaseName: Steam Throttle ${{ env.RELEASE_TAG }}
           releaseDraft: true
           prerelease: false
+      - name: Build portable executable
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          npm run build
+          cargo build --release --manifest-path src-tauri/Cargo.toml
+      - name: Package portable executable
+        shell: pwsh
+        run: |
+          $archive = "SteamThrottle-$env:RELEASE_TAG-windows-x64-portable.zip"
+          Compress-Archive -LiteralPath "src-tauri/target/release/steamthrottle.exe" -DestinationPath $archive
+          gh release upload $env:RELEASE_TAG $archive --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
