@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { actionLabel, ruleNameLabel, stateLabel } from "./format";
+import { actionLabel, automationStatusLabel, ruleNameLabel, stateLabel } from "./format";
 
 describe("status formatting", () => {
+  it("labels automation state without repeating the control name", () => {
+    expect(automationStatusLabel(true)).toBe("Active");
+    expect(automationStatusLabel(false)).toBe("Disabled");
+  });
+
   it("labels the decimal 10 MB/s limit without confusing it with megabits", () => {
     expect(actionLabel({ kind: "limit", bytesPerSecond: 10_000_000 })).toBe("Limited to 10.0 MB/s");
   });

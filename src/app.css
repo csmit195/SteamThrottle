@@ -82,12 +82,6 @@ input {
   flex-direction: column;
   background: #101114;
 }
-.automation-panel strong {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .sidebar nav {
   display: flex;
   flex: 1;
@@ -137,30 +131,22 @@ input {
   stroke-linejoin: round;
 }
 .automation-panel {
-  display: grid;
-  grid-template-columns: 8px minmax(0, 1fr) 30px;
+  display: flex;
   align-items: center;
   gap: 8px;
   height: 36px;
   padding: 0 9px;
+  color: #949ba4;
   background: #0b0c0f;
-}
-.automation-panel strong {
   font-size: 11px;
   line-height: 15px;
 }
-.presence,
 .footer-dot,
 .event-dot {
   display: block;
   border-radius: 50%;
   background: #80848e;
 }
-.presence {
-  width: 8px;
-  height: 8px;
-}
-.presence.online,
 .footer-dot.online {
   background: #5865f2;
 }

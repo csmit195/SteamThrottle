@@ -4,7 +4,7 @@
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { openUrl } from "@tauri-apps/plugin-opener";
-  import { actionLabel, ruleNameLabel, stateLabel } from "$lib/format";
+  import { actionLabel, automationStatusLabel, ruleNameLabel, stateLabel } from "$lib/format";
   import type { RuntimeSnapshot } from "$lib/types";
 
   type Tab = "overview" | "behavior" | "settings";
@@ -133,8 +133,6 @@
       </nav>
 
       <div class="automation-panel">
-        <span class:online={snapshot?.automationEnabled} class="presence"></span>
-        <strong>{snapshot?.automationEnabled ? "Automation on" : "Automation off"}</strong>
         <button
           class:enabled={snapshot?.automationEnabled}
           class="toggle"
@@ -142,6 +140,7 @@
           disabled={!snapshot || busy}
           aria-label="Toggle automation"><span></span></button
         >
+        <span>{automationStatusLabel(snapshot?.automationEnabled ?? false)}</span>
       </div>
     </aside>
 

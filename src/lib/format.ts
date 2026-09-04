@@ -1,5 +1,9 @@
 import type { BandwidthAction, Observation } from "./types";
 
+export function automationStatusLabel(enabled: boolean): string {
+  return enabled ? "Active" : "Disabled";
+}
+
 export function actionLabel(action: BandwidthAction): string {
   if (action.kind === "unlimited") return "Unlimited";
   if (action.kind === "pause") return "Downloads paused";
