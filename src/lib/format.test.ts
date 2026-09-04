@@ -7,7 +7,23 @@ describe("status formatting", () => {
   });
 
   it("distinguishes preparation, combat, and death", () => {
-    expect(stateLabel({ clientPhase: "inGame", mode: "arena", arenaPhase: "preparation", life: "alive", confidence: 100 })).toBe("Arena preparation");
-    expect(stateLabel({ clientPhase: "inGame", mode: "arena", arenaPhase: "combat", life: "dead", confidence: 100 })).toBe("Arena combat · dead");
+    expect(
+      stateLabel({
+        clientPhase: "inGame",
+        mode: "arena",
+        arenaPhase: "preparation",
+        life: "alive",
+        confidence: 100,
+      }),
+    ).toBe("Arena preparation");
+    expect(
+      stateLabel({
+        clientPhase: "inGame",
+        mode: "arena",
+        arenaPhase: "combat",
+        life: "dead",
+        confidence: 100,
+      }),
+    ).toBe("Arena combat · dead");
   });
 });

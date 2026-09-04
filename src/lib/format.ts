@@ -16,6 +16,7 @@ export function stateLabel(state: Observation): string {
   if (state.clientPhase === "endOfGame") return "League post-game";
   if (state.mode !== "arena") return state.mode === "other" ? "League match" : "Match type unknown";
   if (state.arenaPhase === "preparation") return "Arena preparation";
-  if (state.arenaPhase === "combat") return state.life === "dead" ? "Arena combat · dead" : "Arena combat";
+  if (state.arenaPhase === "combat")
+    return state.life === "dead" ? "Arena combat · dead" : "Arena combat";
   return "Arena phase uncertain";
 }
