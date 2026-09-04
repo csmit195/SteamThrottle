@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "SteamThrottle",
+  "productName": "Steam Throttle",
   "version": "0.1.0",
   "identifier": "io.github.csmit195.steamthrottle",
   "build": {
@@ -12,12 +12,12 @@
   "app": {
     "windows": [
       {
-        "title": "SteamThrottle",
-        "width": 800,
-        "height": 540,
-        "minWidth": 680,
-        "minHeight": 480,
-        "resizable": true,
+        "title": "Steam Throttle",
+        "width": 740,
+        "height": 470,
+        "resizable": false,
+        "maximizable": false,
+        "decorations": false,
         "center": true
       }
     ],
@@ -36,8 +36,8 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "publisher": "SteamThrottle contributors",
-    "copyright": "Copyright © 2026 SteamThrottle contributors",
+    "publisher": "Steam Throttle contributors",
+    "copyright": "Copyright © 2026 Steam Throttle contributors",
     "shortDescription": "Steam download throttling for League players",
     "longDescription": "A native Steam download throttler for League of Legends players.",
     "windows": {

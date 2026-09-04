@@ -2,6 +2,8 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
+  import { openUrl } from "@tauri-apps/plugin-opener";
   import { actionLabel, stateLabel } from "$lib/format";
   import type { RuntimeSnapshot } from "$lib/types";
 
@@ -60,6 +62,19 @@
     }
   }
 
+  function minimizeWindow() {
+    void getCurrentWindow().minimize();
+  }
+
+  function exitApp() {
+    void invoke("quit_app");
+  }
+
+  function openWebsite(event: MouseEvent) {
+    event.preventDefault();
+    void openUrl("https://csmit195.com");
+  }
+
   function moveRule(index: number, direction: -1 | 1) {
     if (!snapshot) return;
     const target = index + direction;
@@ -85,287 +100,284 @@
   });
 </script>
 
-<svelte:head><title>SteamThrottle</title></svelte:head>
+<svelte:head><title>Steam Throttle</title></svelte:head>
 
-<div class="app-shell">
-  <aside class="sidebar">
-    <div class="product">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17V9m7 8V4m7 13v-5M3 20h18" /></svg>
-      <div><strong>SteamThrottle</strong><span>League bandwidth</span></div>
+<div class="window-shell">
+  <header class="titlebar" data-tauri-drag-region>
+    <strong data-tauri-drag-region>Steam Throttle</strong>
+    <div class="window-controls">
+      <button onclick={minimizeWindow} aria-label="Minimize" title="Minimize">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.5h8" /></svg>
+      </button>
+      <button class="close" onclick={exitApp} aria-label="Exit" title="Exit">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 2.5 7 7m0-7-7 7" /></svg>
+      </button>
     </div>
+  </header>
 
-    <nav aria-label="Sections">
-      <span class="nav-label">Monitor</span>
-      <button class:active={tab === "overview"} onclick={() => (tab = "overview")}>
-        <svg viewBox="0 0 24 24"><path d="M4 13a8 8 0 1 1 16 0M12 13l4-4M5 19h14" /></svg><span
-          >Overview</span
-        >
-      </button>
-      <button class:active={tab === "activity"} onclick={() => (tab = "activity")}>
-        <svg viewBox="0 0 24 24"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3" /></svg><span>Activity</span
-        >
-      </button>
-      <span class="nav-label">Configure</span>
-      <button class:active={tab === "rules"} onclick={() => (tab = "rules")}>
-        <svg viewBox="0 0 24 24"><path d="M4 7h10m4 0h2M4 17h2m4 0h10M14 4v6M6 14v6" /></svg><span
-          >Rules</span
-        >
-      </button>
-      <button class:active={tab === "settings"} onclick={() => (tab = "settings")}>
-        <svg viewBox="0 0 24 24"
-          ><circle cx="12" cy="12" r="3" /><path
-            d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A8 8 0 0 0 15 6l-.3-2.6h-4L10.4 6a8 8 0 0 0-1.5.9l-2.4-1-2 3.5 2.1 1.5a7 7 0 0 0 0 2.1l-2 1.5 2 3.4 2.3-1A8 8 0 0 0 10.4 18l.3 2.6h4L15 18a8 8 0 0 0 1.5-.9l2.4 1 2-3.5-2.1-1.5A7 7 0 0 0 19 12Z"
-          /></svg
-        ><span>Settings</span>
-      </button>
-    </nav>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <nav aria-label="Sections">
+        <span class="nav-label">Monitor</span>
+        <button class:active={tab === "overview"} onclick={() => (tab = "overview")}>
+          <svg viewBox="0 0 24 24"><path d="M4 13a8 8 0 1 1 16 0M12 13l4-4M5 19h14" /></svg><span
+            >Overview</span
+          >
+        </button>
+        <button class:active={tab === "activity"} onclick={() => (tab = "activity")}>
+          <svg viewBox="0 0 24 24"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3" /></svg><span
+            >Activity</span
+          >
+        </button>
+        <span class="nav-label">Configure</span>
+        <button class:active={tab === "rules"} onclick={() => (tab = "rules")}>
+          <svg viewBox="0 0 24 24"><path d="M4 7h10m4 0h2M4 17h2m4 0h10M14 4v6M6 14v6" /></svg><span
+            >Rules</span
+          >
+        </button>
+        <button class:active={tab === "settings"} onclick={() => (tab = "settings")}>
+          <svg viewBox="0 0 24 24"
+            ><circle cx="12" cy="12" r="3" /><path
+              d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A8 8 0 0 0 15 6l-.3-2.6h-4L10.4 6a8 8 0 0 0-1.5.9l-2.4-1-2 3.5 2.1 1.5a7 7 0 0 0 0 2.1l-2 1.5 2 3.4 2.3-1A8 8 0 0 0 10.4 18l.3 2.6h4L15 18a8 8 0 0 0 1.5-.9l2.4 1 2-3.5-2.1-1.5A7 7 0 0 0 19 12Z"
+            /></svg
+          ><span>Settings</span>
+        </button>
+      </nav>
 
-    <div class="automation-panel">
-      <span class:online={snapshot?.automationEnabled} class="presence"></span>
-      <div>
-        <strong>{snapshot?.automationEnabled ? "Automation on" : "Automation off"}</strong><span
-          >{snapshot?.adapterHealth ?? "Starting…"}</span
-        >
-      </div>
-      <button
-        class:enabled={snapshot?.automationEnabled}
-        class="toggle"
-        onclick={toggleAutomation}
-        disabled={!snapshot || busy}
-        aria-label="Toggle automation"><span></span></button
-      >
-    </div>
-  </aside>
-
-  <section class="workspace">
-    <header class="toolbar">
-      <div>
-        <h1>{titles[tab][0]}</h1>
-        <span>{titles[tab][1]}</span>
-      </div>
-      {#if (tab === "rules" || tab === "settings") && snapshot}<button
-          class="button primary"
-          onclick={saveSettings}
-          disabled={busy}>Save</button
-        >{/if}
-    </header>
-
-    {#if error}<div class="toast danger" role="alert">
-        <span>{error}</span><button onclick={() => (error = "")}>×</button>
-      </div>{/if}
-    {#if message}<div class="toast">
-        <span>{message}</span><button onclick={() => (message = "")}>×</button>
-      </div>{/if}
-
-    <div class="content">
-      {#if !snapshot}
-        <div class="loading">
-          <span></span><strong>Connecting</strong><small>Reading local League and Steam state</small
+      <div class="automation-panel">
+        <span class:online={snapshot?.automationEnabled} class="presence"></span>
+        <div>
+          <strong>{snapshot?.automationEnabled ? "Automation on" : "Automation off"}</strong><span
+            >{snapshot?.adapterHealth ?? "Starting…"}</span
           >
         </div>
-      {:else if tab === "overview"}
-        <section class="live-state">
-          <div class="live-copy">
-            <span class="section-label">Current state</span>
-            <h2>{stateLabel(snapshot.observation)}</h2>
-            <p>{snapshot.matchedRule.ruleName}</p>
-          </div>
-          <div class:restricted={snapshot.desiredAction.kind !== "unlimited"} class="action">
-            <span>Steam</span><strong>{actionLabel(snapshot.desiredAction)}</strong>
-          </div>
-        </section>
+        <button
+          class:enabled={snapshot?.automationEnabled}
+          class="toggle"
+          onclick={toggleAutomation}
+          disabled={!snapshot || busy}
+          aria-label="Toggle automation"><span></span></button
+        >
+      </div>
+    </aside>
 
-        {#if !snapshot.automationEnabled}<div class="callout">
+    <section class="workspace">
+      <header class="toolbar">
+        <div>
+          <h1>{titles[tab][0]}</h1>
+          <span>{titles[tab][1]}</span>
+        </div>
+        {#if (tab === "rules" || tab === "settings") && snapshot}<button
+            class="button primary"
+            onclick={saveSettings}
+            disabled={busy}>Save</button
+          >{/if}
+      </header>
+
+      {#if error}<div class="toast danger" role="alert">
+          <span>{error}</span><button onclick={() => (error = "")}>×</button>
+        </div>{/if}
+      {#if message}<div class="toast">
+          <span>{message}</span><button onclick={() => (message = "")}>×</button>
+        </div>{/if}
+
+      <div class="content">
+        {#if !snapshot}
+          <div class="loading">
+            <span></span><strong>Connecting</strong><small
+              >Reading local League and Steam state</small
+            >
+          </div>
+        {:else if tab === "overview"}
+          <section class="live-state">
+            <div class="live-copy">
+              <span class="section-label">Current state</span>
+              <h2>{stateLabel(snapshot.observation)}</h2>
+              <p>{snapshot.matchedRule.ruleName}</p>
+            </div>
+            <div class:restricted={snapshot.desiredAction.kind !== "unlimited"} class="action">
+              <span>Steam</span><strong>{actionLabel(snapshot.desiredAction)}</strong>
+            </div>
+          </section>
+
+          <section class="details">
             <div>
-              <strong>Automation is disabled</strong><span
-                >Steam will not be changed until you turn it on.</span
+              <span>Applied</span><strong
+                >{snapshot.appliedAction ? actionLabel(snapshot.appliedAction) : "Waiting"}</strong
               >
             </div>
-            <button class="button primary" onclick={toggleAutomation}>Enable</button>
-          </div>{/if}
+            <div><span>Steam connection</span><strong>{snapshot.adapterHealth}</strong></div>
+          </section>
 
-        <section class="details">
-          <div>
-            <span>Applied</span><strong
-              >{snapshot.appliedAction ? actionLabel(snapshot.appliedAction) : "Waiting"}</strong
-            >
-          </div>
-          <div>
-            <span>League confidence</span><strong>{snapshot.observation.confidence}%</strong>
-          </div>
-          <div><span>Steam connection</span><strong>{snapshot.adapterHealth}</strong></div>
-          <div>
-            <span>Safety</span><strong
-              >{snapshot.observation.clientPhase === "loading" ? "Fail-safe" : "Normal"}</strong
-            >
-          </div>
-        </section>
-
-        <section class="block recent">
-          <div class="block-title">
-            <strong>Recent activity</strong><button onclick={() => (tab = "activity")}
-              >View all</button
-            >
-          </div>
-          {#if snapshot.activity.length === 0}<div class="empty">No state changes yet</div>{/if}
-          {#each snapshot.activity.slice(0, 4) as entry}
-            <div class="activity-row">
-              <span class="event-dot"></span>
-              <div><strong>{entry.state}</strong><small>{entry.reason}</small></div>
-              <span>{actionLabel(entry.action)}</span><time
-                >{new Date(entry.timestampMs).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}</time
+          <section class="block recent">
+            <div class="block-title">
+              <strong>Recent activity</strong><button onclick={() => (tab = "activity")}
+                >View all</button
               >
             </div>
-          {/each}
-        </section>
-      {:else if tab === "rules"}
-        <section class="block">
-          <div class="setting-row limit-row">
-            <div>
-              <strong>Arena combat limit</strong><span
-                >Used while alive or when life state is uncertain.</span
+            {#if snapshot.activity.length === 0}<div class="empty">No state changes yet</div>{/if}
+            {#each snapshot.activity.slice(0, 4) as entry}
+              <div class="activity-row">
+                <span class="event-dot"></span>
+                <div><strong>{entry.state}</strong><small>{entry.reason}</small></div>
+                <span>{actionLabel(entry.action)}</span><time
+                  >{new Date(entry.timestampMs).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}</time
+                >
+              </div>
+            {/each}
+          </section>
+        {:else if tab === "rules"}
+          <section class="block">
+            <div class="setting-row limit-row">
+              <div>
+                <strong>Arena combat limit</strong><span
+                  >Used while alive or when life state is uncertain.</span
+                >
+              </div>
+              <label
+                ><input
+                  type="number"
+                  min="0.128"
+                  max="125"
+                  step="0.5"
+                  value={snapshot.settings.combatLimitBytesPerSecond / 1_000_000}
+                  onchange={(event) =>
+                    (snapshot!.settings.combatLimitBytesPerSecond =
+                      Number(event.currentTarget.value) * 1_000_000)}
+                /><span>MB/s</span></label
               >
             </div>
-            <label
-              ><input
-                type="number"
-                min="0.128"
-                max="125"
-                step="0.5"
-                value={snapshot.settings.combatLimitBytesPerSecond / 1_000_000}
+          </section>
+          <div class="list-heading"><span>Priority</span><span>First enabled match wins</span></div>
+          <section class="rule-list">
+            {#each snapshot.settings.rules as rule, index (rule.id)}
+              <div class:disabled={!rule.enabled} class="rule-row">
+                <label class="checkbox"
+                  ><input type="checkbox" bind:checked={rule.enabled} /><span></span></label
+                >
+                <div class="order">{index + 1}</div>
+                <div class="rule-copy">
+                  <strong>{rule.name}</strong><span
+                    >{rule.condition} · {actionLabel(rule.action)}</span
+                  >
+                </div>
+                <div class="move">
+                  <button
+                    onclick={() => moveRule(index, -1)}
+                    disabled={index === 0}
+                    aria-label="Move up">↑</button
+                  ><button
+                    onclick={() => moveRule(index, 1)}
+                    disabled={index === snapshot!.settings.rules.length - 1}
+                    aria-label="Move down">↓</button
+                  >
+                </div>
+              </div>
+            {/each}
+          </section>
+        {:else if tab === "activity"}
+          <section class="block activity-list">
+            {#if snapshot.activity.length === 0}<div class="empty tall">
+                No decisions recorded this session
+              </div>{/if}
+            {#each snapshot.activity as entry}
+              <div class="activity-row">
+                <span class="event-dot"></span>
+                <div><strong>{entry.state}</strong><small>{entry.reason}</small></div>
+                <span>{actionLabel(entry.action)}</span><time
+                  >{new Date(entry.timestampMs).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}</time
+                >
+              </div>
+            {/each}
+          </section>
+        {:else}
+          <div class="list-heading"><span>Steam</span></div>
+          <section class="block settings-list">
+            <label class="path-row"
+              ><div><strong>Steam executable</strong><span>Direct path to steam.exe</span></div>
+              <input
+                value={snapshot.settings.steamPath ?? ""}
+                placeholder="C:\Program Files (x86)\Steam\steam.exe"
                 onchange={(event) =>
-                  (snapshot!.settings.combatLimitBytesPerSecond =
-                    Number(event.currentTarget.value) * 1_000_000)}
-              /><span>MB/s</span></label
+                  (snapshot!.settings.steamPath = event.currentTarget.value || null)}
+              /></label
             >
-          </div>
-        </section>
-        <div class="list-heading"><span>Priority</span><span>First enabled match wins</span></div>
-        <section class="rule-list">
-          {#each snapshot.settings.rules as rule, index (rule.id)}
-            <div class:disabled={!rule.enabled} class="rule-row">
-              <label class="checkbox"
-                ><input type="checkbox" bind:checked={rule.enabled} /><span></span></label
-              >
-              <div class="order">{index + 1}</div>
-              <div class="rule-copy">
-                <strong>{rule.name}</strong><span
-                  >{rule.condition} · {actionLabel(rule.action)}</span
+            <label class="setting-row"
+              ><div>
+                <strong>Hard pause</strong><span
+                  >Use Steam's pause gate instead of the 0.128 MB/s fallback.</span
                 >
               </div>
-              <div class="move">
-                <button
-                  onclick={() => moveRule(index, -1)}
-                  disabled={index === 0}
-                  aria-label="Move up">↑</button
-                ><button
-                  onclick={() => moveRule(index, 1)}
-                  disabled={index === snapshot!.settings.rules.length - 1}
-                  aria-label="Move down">↓</button
-                >
+              <input
+                class="native-toggle"
+                type="checkbox"
+                bind:checked={snapshot.settings.hardPauseEnabled}
+              /></label
+            >
+          </section>
+          <div class="list-heading"><span>Application</span></div>
+          <section class="block settings-list">
+            <label class="setting-row"
+              ><div>
+                <strong>Restore on exit</strong><span>Return Steam to its captured throttle.</span>
               </div>
-            </div>
-          {/each}
-        </section>
-      {:else if tab === "activity"}
-        <section class="block activity-list">
-          {#if snapshot.activity.length === 0}<div class="empty tall">
-              No decisions recorded this session
-            </div>{/if}
-          {#each snapshot.activity as entry}
-            <div class="activity-row">
-              <span class="event-dot"></span>
-              <div><strong>{entry.state}</strong><small>{entry.reason}</small></div>
-              <span>{actionLabel(entry.action)}</span><time
-                >{new Date(entry.timestampMs).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                })}</time
-              >
-            </div>
-          {/each}
-        </section>
-      {:else}
-        <div class="list-heading"><span>Steam</span></div>
-        <section class="block settings-list">
-          <label class="path-row"
-            ><div><strong>Steam executable</strong><span>Direct path to steam.exe</span></div>
-            <input
-              value={snapshot.settings.steamPath ?? ""}
-              placeholder="C:\Program Files (x86)\Steam\steam.exe"
-              onchange={(event) =>
-                (snapshot!.settings.steamPath = event.currentTarget.value || null)}
-            /></label
-          >
-          <label class="setting-row"
-            ><div>
-              <strong>Hard pause</strong><span
-                >Use Steam's pause gate instead of the 0.128 MB/s fallback.</span
-              >
-            </div>
-            <input
-              class="native-toggle"
-              type="checkbox"
-              bind:checked={snapshot.settings.hardPauseEnabled}
-            /></label
-          >
-        </section>
-        <div class="list-heading"><span>Application</span></div>
-        <section class="block settings-list">
-          <label class="setting-row"
-            ><div>
-              <strong>Restore on exit</strong><span>Return Steam to its captured throttle.</span>
-            </div>
-            <input
-              class="native-toggle"
-              type="checkbox"
-              bind:checked={snapshot.settings.restoreOnExit}
-            /></label
-          >
-          <label class="setting-row"
-            ><div>
-              <strong>Close to tray</strong><span>Keep monitoring after closing the window.</span>
-            </div>
-            <input
-              class="native-toggle"
-              type="checkbox"
-              bind:checked={snapshot.settings.closeToTray}
-            /></label
-          >
-          <label class="setting-row"
-            ><div>
-              <strong>Start with Windows</strong><span>Launch silently when you sign in.</span>
-            </div>
-            <input
-              class="native-toggle"
-              type="checkbox"
-              bind:checked={snapshot.settings.startWithWindows}
-            /></label
-          >
-        </section>
-        <div class="list-heading"><span>Tools</span></div>
-        <section class="tool-row">
-          <button class="button" onclick={() => utility("test_steam_connection")} disabled={busy}
-            >Test Steam</button
-          ><button class="button" onclick={() => utility("restore_steam_now")} disabled={busy}
-            >Restore now</button
-          ><button class="button" onclick={() => utility("export_diagnostics")} disabled={busy}
-            >Export diagnostics</button
-          ><button class="button" onclick={() => utility("check_for_update")} disabled={busy}
-            >Check updates</button
-          >
-        </section>
-      {/if}
-    </div>
+              <input
+                class="native-toggle"
+                type="checkbox"
+                bind:checked={snapshot.settings.restoreOnExit}
+              /></label
+            >
+            <label class="setting-row"
+              ><div>
+                <strong>Close to tray</strong><span>Keep monitoring after closing the window.</span>
+              </div>
+              <input
+                class="native-toggle"
+                type="checkbox"
+                bind:checked={snapshot.settings.closeToTray}
+              /></label
+            >
+            <label class="setting-row"
+              ><div>
+                <strong>Start with Windows</strong><span>Launch silently when you sign in.</span>
+              </div>
+              <input
+                class="native-toggle"
+                type="checkbox"
+                bind:checked={snapshot.settings.startWithWindows}
+              /></label
+            >
+          </section>
+          <div class="list-heading"><span>Tools</span></div>
+          <section class="tool-row">
+            <button class="button" onclick={() => utility("test_steam_connection")} disabled={busy}
+              >Test Steam</button
+            ><button class="button" onclick={() => utility("restore_steam_now")} disabled={busy}
+              >Restore now</button
+            ><button class="button" onclick={() => utility("export_diagnostics")} disabled={busy}
+              >Export diagnostics</button
+            ><button class="button" onclick={() => utility("check_for_update")} disabled={busy}
+              >Check updates</button
+            >
+          </section>
+        {/if}
+      </div>
 
-    <footer>
-      <span class:online={snapshot?.automationEnabled} class="footer-dot"></span><span
-        >{snapshot ? stateLabel(snapshot.observation) : "Connecting"}</span
-      ><span class="spacer"></span><span>v0.1.0</span>
-    </footer>
-  </section>
+      <footer>
+        <span class:online={snapshot?.automationEnabled} class="footer-dot"></span><span
+          >{snapshot ? stateLabel(snapshot.observation) : "Connecting"}</span
+        ><span class="spacer"></span><span>by</span><a
+          href="https://csmit195.com"
+          onclick={openWebsite}>csmit195</a
+        ><span class="footer-divider"></span><span>v0.1.0</span>
+      </footer>
+    </section>
+  </div>
 </div>

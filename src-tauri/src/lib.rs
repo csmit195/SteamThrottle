@@ -149,11 +149,17 @@ async fn check_for_update(app: tauri::AppHandle) -> Result<String, String> {
         .map_err(|error| error.to_string())?
     {
         Some(update) => Ok(format!(
-            "SteamThrottle {} is available on GitHub Releases",
+            "Steam Throttle {} is available on GitHub Releases",
             update.version
         )),
-        None => Ok("SteamThrottle is up to date".into()),
+        None => Ok("Steam Throttle is up to date".into()),
     }
+}
+
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    restore_best_effort(&app);
+    app.exit(0);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -171,14 +177,14 @@ pub fn run() {
         .setup(|app| {
             runtime::spawn_monitor(app.handle().clone());
             spawn_update_checks(app.handle().clone());
-            let open = MenuItemBuilder::with_id("open", "Open SteamThrottle").build(app)?;
+            let open = MenuItemBuilder::with_id("open", "Open Steam Throttle").build(app)?;
             let restore = MenuItemBuilder::with_id("restore", "Remove Steam limit").build(app)?;
             let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
             let menu = MenuBuilder::new(app)
                 .items(&[&open, &restore, &quit])
                 .build()?;
             let mut tray = TrayIconBuilder::new()
-                .tooltip("SteamThrottle")
+                .tooltip("Steam Throttle")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "open" => show_main_window(app),
@@ -234,7 +240,8 @@ pub fn run() {
             test_steam_connection,
             restore_steam_now,
             export_diagnostics,
-            check_for_update
+            check_for_update,
+            quit_app
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
