@@ -400,14 +400,6 @@ input {
 .block-title strong {
   font-size: 11px;
 }
-.block-title button {
-  padding: 0;
-  border: 0;
-  color: #00a8fc;
-  background: none;
-  font-size: 10px;
-  cursor: pointer;
-}
 .activity-row {
   display: grid;
   grid-template-columns: 7px minmax(130px, 1fr) minmax(95px, auto) 55px;
@@ -541,11 +533,11 @@ input {
 }
 .rule-row {
   display: grid;
-  grid-template-columns: 20px 22px minmax(0, 1fr) 54px;
+  grid-template-columns: 24px minmax(0, 1fr) 20px 54px;
   align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 5px 9px;
+  gap: 9px;
+  min-height: 55px;
+  padding: 6px 9px;
   border-bottom: 1px solid #2d2f35;
 }
 .rule-row:last-child {
@@ -557,14 +549,18 @@ input {
 .order {
   display: grid;
   place-items: center;
-  width: 21px;
-  height: 21px;
-  border-radius: 50%;
-  color: #b5bac1;
-  background: #303238;
-  font-size: 9px;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  color: #949ba4;
+  background: #16171b;
+  font-size: 10px;
+  font-weight: 700;
 }
 .rule-copy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
   min-width: 0;
 }
 .rule-copy strong,
@@ -576,11 +572,20 @@ input {
 }
 .rule-copy strong {
   font-size: 11px;
+  grid-column: 1 / -1;
 }
 .rule-copy span {
-  margin-top: 2px;
+  margin-top: 3px;
   color: #949ba4;
   font-size: 9px;
+}
+.rule-copy b {
+  margin-right: 3px;
+  color: #b5bac1;
+  font-weight: 650;
+}
+.rule-result {
+  text-align: right;
 }
 .checkbox input {
   position: absolute;

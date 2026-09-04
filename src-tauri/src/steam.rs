@@ -4,6 +4,64 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
+use windows_sys::Win32::{
+    System::Threading::{AttachThreadInput, GetCurrentThreadId},
+    UI::WindowsAndMessaging::{
+        BringWindowToTop, GetForegroundWindow, GetWindowThreadProcessId, LSFW_LOCK, LSFW_UNLOCK,
+        LockSetForegroundWindow, SetForegroundWindow,
+    },
+};
+
+fn should_restore_foreground(original: usize, current: usize) -> bool {
+    original != 0 && original != current
+}
+
+struct ForegroundGuard {
+    original: windows_sys::Win32::Foundation::HWND,
+    lock_acquired: bool,
+}
+
+impl ForegroundGuard {
+    fn new() -> Self {
+        // SAFETY: These calls only read and temporarily lock the desktop's foreground-window state.
+        let original = unsafe { GetForegroundWindow() };
+        let lock_acquired = unsafe { LockSetForegroundWindow(LSFW_LOCK) != 0 };
+        Self {
+            original,
+            lock_acquired,
+        }
+    }
+}
+
+impl Drop for ForegroundGuard {
+    fn drop(&mut self) {
+        // SAFETY: Window handles and thread IDs come directly from Win32. Failed focus operations
+        // are harmless and deliberately ignored because throttling must not fail with UI focus.
+        unsafe {
+            if self.lock_acquired {
+                LockSetForegroundWindow(LSFW_UNLOCK);
+            }
+
+            let current = GetForegroundWindow();
+            if !should_restore_foreground(self.original as usize, current as usize) {
+                return;
+            }
+
+            let caller_thread = GetCurrentThreadId();
+            let foreground_thread = GetWindowThreadProcessId(current, std::ptr::null_mut());
+            let attached = foreground_thread != 0
+                && foreground_thread != caller_thread
+                && AttachThreadInput(caller_thread, foreground_thread, 1) != 0;
+
+            BringWindowToTop(self.original);
+            SetForegroundWindow(self.original);
+
+            if attached {
+                AttachThreadInput(caller_thread, foreground_thread, 0);
+            }
+        }
+    }
+}
 
 pub fn command_for(action: &BandwidthAction) -> Vec<String> {
     match action {
@@ -58,6 +116,7 @@ pub fn parse_latest_throttle(log: &str) -> Option<BandwidthAction> {
 }
 
 pub fn read_current_throttle(steam_path: &Path) -> io::Result<Option<BandwidthAction>> {
+    let _foreground = ForegroundGuard::new();
     let status = Command::new(steam_path)
         .args(["-ifrunning", "+get_download_throttle"])
         .stdin(Stdio::null())
@@ -98,6 +157,7 @@ pub fn invoke_steam_transition(
             "Steam path must point to steam.exe",
         ));
     }
+    let _foreground = ForegroundGuard::new();
     for args in commands_for_transition(previous, next) {
         let status = Command::new(steam_path)
             .arg("-ifrunning")
@@ -112,6 +172,9 @@ pub fn invoke_steam_transition(
             )));
         }
     }
+    // steam.exe forwards commands to the existing client and can exit before the client
+    // processes them. Keep the focus guard alive through that delayed activation window.
+    std::thread::sleep(std::time::Duration::from_millis(300));
     Ok(())
 }
 
@@ -168,5 +231,12 @@ mod tests {
             parse_latest_throttle("Current download throttle rate: 0 Kbps"),
             Some(BandwidthAction::Unlimited)
         );
+    }
+
+    #[test]
+    fn foreground_is_restored_only_when_another_window_took_focus() {
+        assert!(!should_restore_foreground(0, 44));
+        assert!(!should_restore_foreground(44, 44));
+        assert!(should_restore_foreground(44, 91));
     }
 }

@@ -4,10 +4,10 @@
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { openUrl } from "@tauri-apps/plugin-opener";
-  import { actionLabel, stateLabel } from "$lib/format";
+  import { actionLabel, ruleConditionLabel, ruleNameLabel, stateLabel } from "$lib/format";
   import type { RuntimeSnapshot } from "$lib/types";
 
-  type Tab = "overview" | "rules" | "activity" | "settings";
+  type Tab = "overview" | "rules" | "settings";
   let tab = $state<Tab>("overview");
   let snapshot = $state<RuntimeSnapshot | null>(null);
   let busy = $state(false);
@@ -17,7 +17,6 @@
   const titles: Record<Tab, [string, string]> = {
     overview: ["Overview", "Live game and download state"],
     rules: ["Rules", "Ordered bandwidth policy"],
-    activity: ["Activity", "Recent local decisions"],
     settings: ["Settings", "Steam and application preferences"],
   };
 
@@ -38,6 +37,9 @@
       snapshot = await call("set_automation", { enabled: !snapshot.automationEnabled });
     } finally {
       busy = false;
+      await getCurrentWindow()
+        .setFocus()
+        .catch(() => {});
     }
   }
 
@@ -124,11 +126,6 @@
             >Overview</span
           >
         </button>
-        <button class:active={tab === "activity"} onclick={() => (tab = "activity")}>
-          <svg viewBox="0 0 24 24"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3" /></svg><span
-            >Activity</span
-          >
-        </button>
         <span class="nav-label">Configure</span>
         <button class:active={tab === "rules"} onclick={() => (tab = "rules")}>
           <svg viewBox="0 0 24 24"><path d="M4 7h10m4 0h2M4 17h2m4 0h10M14 4v6M6 14v6" /></svg><span
@@ -193,7 +190,12 @@
             <div class="live-copy">
               <span class="section-label">Current state</span>
               <h2>{stateLabel(snapshot.observation)}</h2>
-              <p>{snapshot.matchedRule.ruleName}</p>
+              <p>
+                {ruleNameLabel({
+                  id: snapshot.matchedRule.ruleId,
+                  name: snapshot.matchedRule.ruleName,
+                })}
+              </p>
             </div>
             <div class:restricted={snapshot.desiredAction.kind !== "unlimited"} class="action">
               <span>Steam</span><strong>{actionLabel(snapshot.desiredAction)}</strong>
@@ -211,9 +213,7 @@
 
           <section class="block recent">
             <div class="block-title">
-              <strong>Recent activity</strong><button onclick={() => (tab = "activity")}
-                >View all</button
-              >
+              <strong>Recent activity</strong>
             </div>
             {#if snapshot.activity.length === 0}<div class="empty">No state changes yet</div>{/if}
             {#each snapshot.activity.slice(0, 4) as entry}
@@ -251,19 +251,23 @@
               >
             </div>
           </section>
-          <div class="list-heading"><span>Priority</span><span>First enabled match wins</span></div>
+          <div class="list-heading"><span>Rules</span><span>Checked from top to bottom</span></div>
           <section class="rule-list">
             {#each snapshot.settings.rules as rule, index (rule.id)}
               <div class:disabled={!rule.enabled} class="rule-row">
-                <label class="checkbox"
-                  ><input type="checkbox" bind:checked={rule.enabled} /><span></span></label
-                >
-                <div class="order">{index + 1}</div>
+                <div class="order" title={`Priority ${index + 1}`}>{index + 1}</div>
                 <div class="rule-copy">
-                  <strong>{rule.name}</strong><span
-                    >{rule.condition} · {actionLabel(rule.action)}</span
-                  >
+                  <strong>{ruleNameLabel(rule)}</strong>
+                  <span class="rule-summary"><b>When</b> {ruleConditionLabel(rule.condition)}</span>
+                  <span class="rule-result"><b>Steam</b> {actionLabel(rule.action)}</span>
                 </div>
+                <label class="checkbox" title={rule.enabled ? "Disable rule" : "Enable rule"}
+                  ><input
+                    type="checkbox"
+                    bind:checked={rule.enabled}
+                    aria-label={`${rule.enabled ? "Disable" : "Enable"} ${ruleNameLabel(rule)}`}
+                  /><span></span></label
+                >
                 <div class="move">
                   <button
                     onclick={() => moveRule(index, -1)}
@@ -275,25 +279,6 @@
                     aria-label="Move down">↓</button
                   >
                 </div>
-              </div>
-            {/each}
-          </section>
-        {:else if tab === "activity"}
-          <section class="block activity-list">
-            {#if snapshot.activity.length === 0}<div class="empty tall">
-                No decisions recorded this session
-              </div>{/if}
-            {#each snapshot.activity as entry}
-              <div class="activity-row">
-                <span class="event-dot"></span>
-                <div><strong>{entry.state}</strong><small>{entry.reason}</small></div>
-                <span>{actionLabel(entry.action)}</span><time
-                  >{new Date(entry.timestampMs).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    second: "2-digit",
-                  })}</time
-                >
               </div>
             {/each}
           </section>

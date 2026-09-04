@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actionLabel, stateLabel } from "./format";
+import { actionLabel, ruleConditionLabel, ruleNameLabel, stateLabel } from "./format";
 
 describe("status formatting", () => {
   it("labels the decimal 10 MB/s limit without confusing it with megabits", () => {
@@ -25,5 +25,15 @@ describe("status formatting", () => {
         confidence: 100,
       }),
     ).toBe("Arena combat · dead");
+  });
+
+  it("describes rule conditions as user-facing sentences", () => {
+    expect(ruleConditionLabel("arenaCombatDead")).toBe("You are dead during Arena combat");
+    expect(ruleConditionLabel("always")).toBe("No earlier rule matches");
+  });
+
+  it("names the catch-all rule as a fallback", () => {
+    expect(ruleNameLabel({ id: "fail-safe", name: "Unknown state" })).toBe("Fallback");
+    expect(ruleNameLabel({ id: "arena-combat", name: "Arena combat" })).toBe("Arena combat");
   });
 });
