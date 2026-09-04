@@ -26,11 +26,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: ui/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: .
       - run: npm ci
+        working-directory: ui
       - uses: tauri-apps/tauri-action@v1
         if: github.event_name == 'push'
         env:
@@ -47,12 +49,13 @@ jobs:
         shell: pwsh
         run: |
           npm run build
-          cargo build --release --manifest-path src-tauri/Cargo.toml
+          cargo build --release --manifest-path ../Cargo.toml
+        working-directory: ui
       - name: Package portable executable
         shell: pwsh
         run: |
           $archive = "SteamThrottle-$env:RELEASE_TAG-windows-x64-portable.zip"
-          Compress-Archive -LiteralPath "src-tauri/target/release/steamthrottle.exe" -DestinationPath $archive
+          Compress-Archive -LiteralPath "target/release/steamthrottle.exe" -DestinationPath $archive
           gh release upload $env:RELEASE_TAG $archive --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

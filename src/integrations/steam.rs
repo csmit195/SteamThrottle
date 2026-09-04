@@ -1,4 +1,4 @@
-use crate::core::{BandwidthAction, bytes_per_second_to_steam_kbps};
+use crate::policy::{BandwidthAction, bytes_per_second_to_steam_kbps};
 use std::{
     io,
     path::{Path, PathBuf},
@@ -207,7 +207,7 @@ pub fn invoke_steam_transition(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::BandwidthAction;
+    use crate::policy::BandwidthAction;
 
     #[test]
     fn builds_documented_runtime_console_commands() {

@@ -59,21 +59,22 @@ Requirements:
 - Microsoft C++ Build Tools required by Tauri
 
 ```powershell
-npm install
-npm run format:check
-npm test
-npm run check
-
-Set-Location src-tauri
-cargo fmt --check
-cargo clippy --all-targets -- -D warnings
-cargo test
-Set-Location ..
-
-npm run tauri build
+./scripts/setup.ps1
+./scripts/check.ps1
+./scripts/build.ps1
 ```
 
-Run the development build with `npm run tauri dev`.
+Run the development app with `./scripts/dev.ps1`. The scripts keep Cargo's large build cache in `%LOCALAPPDATA%\SteamThrottle\build-cache` instead of the repository. Run `./scripts/clean.ps1` to remove generated frontend output and both local Cargo caches.
+
+## Repository layout
+
+```text
+src/           Rust application and automation logic
+ui/            Svelte interface, tests, and npm dependencies
+capabilities/  Tauri permissions
+icons/         Windows and release artwork
+scripts/       Local development commands
+```
 
 ## Contributing
 

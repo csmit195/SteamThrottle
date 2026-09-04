@@ -1,8 +1,9 @@
-mod config;
-mod core;
-mod league;
-mod runtime;
-mod steam;
+mod automation;
+mod integrations;
+mod policy;
+mod settings;
+
+use integrations::steam;
 
 use tauri::{
     Manager,
@@ -13,15 +14,15 @@ use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_updater::UpdaterExt;
 
 #[tauri::command]
-fn get_snapshot(state: tauri::State<'_, runtime::RuntimeState>) -> runtime::RuntimeSnapshot {
+fn get_snapshot(state: tauri::State<'_, automation::RuntimeState>) -> automation::RuntimeSnapshot {
     state.inner.lock().unwrap().clone()
 }
 
 #[tauri::command]
 fn set_automation(
     enabled: bool,
-    state: tauri::State<'_, runtime::RuntimeState>,
-) -> Result<runtime::RuntimeSnapshot, String> {
+    state: tauri::State<'_, automation::RuntimeState>,
+) -> Result<automation::RuntimeSnapshot, String> {
     let (was_enabled, steam_path) = {
         let snapshot = state.inner.lock().unwrap();
         (snapshot.automation_enabled, snapshot.steam_path.clone())
@@ -43,21 +44,21 @@ fn set_automation(
         let restore = snapshot
             .baseline_action
             .clone()
-            .unwrap_or(core::BandwidthAction::Unlimited);
+            .unwrap_or(policy::BandwidthAction::Unlimited);
         steam::invoke_steam_transition(path, snapshot.applied_action.as_ref(), &restore)
             .map_err(|error| error.to_string())?;
         snapshot.applied_action = Some(restore);
     }
-    config::save(&snapshot.settings).map_err(|error| error.to_string())?;
+    settings::save(&snapshot.settings).map_err(|error| error.to_string())?;
     Ok(snapshot.clone())
 }
 
 #[tauri::command]
 fn save_policy(
     app: tauri::AppHandle,
-    settings: config::AppSettings,
-    state: tauri::State<'_, runtime::RuntimeState>,
-) -> Result<runtime::RuntimeSnapshot, String> {
+    settings: settings::AppSettings,
+    state: tauri::State<'_, automation::RuntimeState>,
+) -> Result<automation::RuntimeSnapshot, String> {
     if !(128_000..=125_000_000).contains(&settings.combat_limit_bytes_per_second) {
         return Err("Throttled speed limit must be between 0.128 and 125 MB/s".into());
     }
@@ -67,7 +68,7 @@ fn save_policy(
     } else if autostart.is_enabled().unwrap_or(false) {
         autostart.disable().map_err(|error| error.to_string())?;
     }
-    config::save(&settings).map_err(|error| error.to_string())?;
+    settings::save(&settings).map_err(|error| error.to_string())?;
     let mut snapshot = state.inner.lock().unwrap();
     snapshot.automation_enabled = settings.automation_enabled;
     snapshot.settings = settings;
@@ -99,7 +100,7 @@ fn quit_app(app: tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let app_state = runtime::RuntimeState::new(config::load());
+    let app_state = automation::RuntimeState::new(settings::load());
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
@@ -110,7 +111,7 @@ pub fn run() {
         ))
         .manage(app_state)
         .setup(|app| {
-            runtime::spawn_monitor(app.handle().clone());
+            automation::spawn_monitor(app.handle().clone());
             spawn_update_checks(app.handle().clone());
             let open = MenuItemBuilder::with_id("open", "Open Steam Throttle").build(app)?;
             let restore = MenuItemBuilder::with_id("restore", "Remove Steam limit").build(app)?;
@@ -150,7 +151,7 @@ pub fn run() {
                 window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                         let close_to_tray = app_for_close
-                            .state::<runtime::RuntimeState>()
+                            .state::<automation::RuntimeState>()
                             .inner
                             .lock()
                             .unwrap()
@@ -207,7 +208,7 @@ fn show_main_window(app: &tauri::AppHandle) {
 }
 
 fn restore_best_effort(app: &tauri::AppHandle) {
-    let state = app.state::<runtime::RuntimeState>();
+    let state = app.state::<automation::RuntimeState>();
     let snapshot = state.inner.lock().unwrap();
     if snapshot.settings.restore_on_exit
         && let Some(path) = snapshot.steam_path.as_deref()
@@ -215,7 +216,7 @@ fn restore_best_effort(app: &tauri::AppHandle) {
         let restore = snapshot
             .baseline_action
             .as_ref()
-            .unwrap_or(&core::BandwidthAction::Unlimited);
+            .unwrap_or(&policy::BandwidthAction::Unlimited);
         let _ = steam::invoke_steam_transition(path, snapshot.applied_action.as_ref(), restore);
     }
 }

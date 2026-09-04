@@ -20,6 +20,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: ui/package-lock.json
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -27,40 +28,46 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: .
 
       - name: Install frontend dependencies
         run: npm ci
+        working-directory: ui
 
       - name: Check frontend formatting
         run: npm run format:check
+        working-directory: ui
 
       - name: Test frontend
         run: npm test
+        working-directory: ui
 
       - name: Check Svelte
         run: npm run check
+        working-directory: ui
 
       - name: Build frontend
         run: npm run build
+        working-directory: ui
 
       - name: Audit frontend dependencies
         run: npm audit
+        working-directory: ui
 
       - name: Enforce frontend bundle budget
         shell: pwsh
         run: |
-          $bytes = (Get-ChildItem build -Recurse -File | Measure-Object Length -Sum).Sum
+          $bytes = (Get-ChildItem ui/build -Recurse -File | Measure-Object Length -Sum).Sum
           if ($bytes -gt 1048576) { throw "Frontend bundle exceeds 1 MiB: $bytes bytes" }
 
       - name: Check Rust formatting
-        run: cargo fmt --check --manifest-path src-tauri/Cargo.toml
+        run: cargo fmt --check
 
       - name: Lint Rust
-        run: cargo clippy --all-targets --manifest-path src-tauri/Cargo.toml -- -D warnings
+        run: cargo clippy --all-targets -- -D warnings
 
       - name: Test Rust
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+        run: cargo test
 
   audit:
     runs-on: ubuntu-latest
@@ -71,4 +78,3 @@ jobs:
       - uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          working-directory: src-tauri

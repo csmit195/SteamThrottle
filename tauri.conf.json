@@ -4,10 +4,16 @@
   "version": "0.1.0",
   "identifier": "io.github.csmit195.steamthrottle",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": {
+      "script": "npm run dev",
+      "cwd": "ui"
+    },
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
-    "frontendDist": "../build"
+    "beforeBuildCommand": {
+      "script": "npm run build",
+      "cwd": "ui"
+    },
+    "frontendDist": "ui/build"
   },
   "app": {
     "windows": [

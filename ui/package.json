@@ -1,5 +1,6 @@
 {
-  "name": "steamthrottle",
+  "name": "steamthrottle-ui",
+  "private": true,
   "version": "0.1.0",
   "description": "A native Steam download throttler for League of Legends players.",
   "homepage": "https://github.com/csmit195/SteamThrottle",
@@ -19,8 +20,7 @@
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "format": "prettier --write src static",
     "format:check": "prettier --check src static",
-    "test": "vitest run",
-    "tauri": "tauri"
+    "test": "svelte-kit sync && vitest run"
   },
   "license": "MIT",
   "dependencies": {

@@ -15,8 +15,8 @@ Contributions to Steam Throttle are welcome, especially focused fixes, tests, sa
 Install Rust stable, Node.js 22 or newer, npm, and the Microsoft C++ Build Tools required by Tauri. Then run:
 
 ```powershell
-npm install
-npm run tauri dev
+./scripts/setup.ps1
+./scripts/dev.ps1
 ```
 
 Keep integrations within the existing League and Steam modules. Steam Throttle must remain local-only and must not add packet blocking, firewall or QoS changes, process injection, memory access, or administrator-only behavior.
@@ -28,15 +28,7 @@ Use decimal MB/s in the interface and bytes per second internally. Add a failing
 Run the complete verification suite:
 
 ```powershell
-npm run format:check
-npm test
-npm run check
-npm run build
-
-Set-Location src-tauri
-cargo fmt --check
-cargo clippy --all-targets -- -D warnings
-cargo test
+./scripts/check.ps1
 ```
 
 Keep pull requests focused. Explain the state observed, the Steam action expected, and how the change was verified. Pull requests require passing checks and maintainer approval before merge.

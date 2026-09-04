@@ -1,11 +1,15 @@
 use crate::{
-    config::AppSettings,
-    core::{
+    integrations::{
+        league::{fetch_lcu_phase, find_lcu_lockfile, parse_live_state},
+        steam::{
+            default_steam_path, discover_steam_path, invoke_steam_transition, running_steam_path,
+        },
+    },
+    policy::{
         BandwidthAction, ClientPhase, GameMode, ObservedGameState, Rule, RuleMatch, default_rules,
         effective_action, evaluate,
     },
-    league::{fetch_lcu_phase, find_lcu_lockfile, parse_live_state},
-    steam::{default_steam_path, discover_steam_path, invoke_steam_transition, running_steam_path},
+    settings::AppSettings,
 };
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::Mutex, time::Duration};
@@ -180,7 +184,7 @@ pub fn spawn_monitor(app: AppHandle) {
                         client_phase: ClientPhase::Loading,
                         mode: GameMode::Unknown,
                         arena_phase: None,
-                        life: crate::core::LifeState::Unknown,
+                        life: crate::policy::LifeState::Unknown,
                         confidence: 60,
                     },
                 }
@@ -286,7 +290,7 @@ pub fn spawn_monitor(app: AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::{ArenaPhase, LifeState};
+    use crate::policy::{ArenaPhase, LifeState};
 
     #[test]
     fn disabling_alive_throttling_allows_full_speed() {

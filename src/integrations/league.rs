@@ -1,4 +1,4 @@
-use crate::core::{
+use crate::policy::{
     ArenaPlayer, ClientPhase, GameMode, LifeState, ObservedGameState, Team, classify_arena,
 };
 use serde::Deserialize;
@@ -165,7 +165,7 @@ pub fn parse_live_state(json: &str) -> Result<ObservedGameState, serde_json::Err
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::ArenaPhase;
+    use crate::policy::ArenaPhase;
 
     #[test]
     fn parses_arena_combat_and_local_life() {
