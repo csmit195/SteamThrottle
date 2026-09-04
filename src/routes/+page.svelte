@@ -4,22 +4,19 @@
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { openUrl } from "@tauri-apps/plugin-opener";
-  import { actionLabel, ruleConditionLabel, ruleNameLabel, stateLabel } from "$lib/format";
-  import { reorderRules } from "$lib/rules";
+  import { actionLabel, ruleNameLabel, stateLabel } from "$lib/format";
   import type { RuntimeSnapshot } from "$lib/types";
 
-  type Tab = "overview" | "rules" | "settings";
+  type Tab = "overview" | "behavior" | "settings";
   let tab = $state<Tab>("overview");
   let snapshot = $state<RuntimeSnapshot | null>(null);
   let busy = $state(false);
   let message = $state("");
   let error = $state("");
-  let draggedRuleIndex = $state<number | null>(null);
-  let ruleDropIndex = $state<number | null>(null);
 
   const titles: Record<Tab, [string, string]> = {
     overview: ["Overview", "Live game and download state"],
-    rules: ["Rules", "Ordered bandwidth policy"],
+    behavior: ["Behavior", "League download preferences"],
     settings: ["Settings", "Steam and application preferences"],
   };
 
@@ -80,44 +77,6 @@
     void openUrl("https://csmit195.com");
   }
 
-  function moveRule(fromIndex: number, toIndex: number) {
-    if (!snapshot) return;
-    snapshot.settings.rules = reorderRules(snapshot.settings.rules, fromIndex, toIndex);
-  }
-
-  function startRuleDrag(event: DragEvent, index: number) {
-    draggedRuleIndex = index;
-    ruleDropIndex = index;
-    if (event.dataTransfer) {
-      event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("text/plain", String(index));
-    }
-  }
-
-  function allowRuleDrop(event: DragEvent, index: number) {
-    event.preventDefault();
-    ruleDropIndex = index;
-    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
-  }
-
-  function dropRule(event: DragEvent, index: number) {
-    event.preventDefault();
-    if (draggedRuleIndex !== null) moveRule(draggedRuleIndex, index);
-    draggedRuleIndex = null;
-    ruleDropIndex = null;
-  }
-
-  function finishRuleDrag() {
-    draggedRuleIndex = null;
-    ruleDropIndex = null;
-  }
-
-  function moveRuleWithKeyboard(event: KeyboardEvent, index: number) {
-    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
-    event.preventDefault();
-    moveRule(index, index + (event.key === "ArrowUp" ? -1 : 1));
-  }
-
   onMount(() => {
     const cleanups: Array<() => void> = [];
     call<RuntimeSnapshot>("get_snapshot")
@@ -159,9 +118,9 @@
           >
         </button>
         <span class="nav-label">Configure</span>
-        <button class:active={tab === "rules"} onclick={() => (tab = "rules")}>
+        <button class:active={tab === "behavior"} onclick={() => (tab = "behavior")}>
           <svg viewBox="0 0 24 24"><path d="M4 7h10m4 0h2M4 17h2m4 0h10M14 4v6M6 14v6" /></svg><span
-            >Rules</span
+            >Behavior</span
           >
         </button>
         <button class:active={tab === "settings"} onclick={() => (tab = "settings")}>
@@ -192,7 +151,7 @@
           <h1>{titles[tab][0]}</h1>
           <span>{titles[tab][1]}</span>
         </div>
-        {#if (tab === "rules" || tab === "settings") && snapshot}<button
+        {#if (tab === "behavior" || tab === "settings") && snapshot}<button
             class="button primary"
             onclick={saveSettings}
             disabled={busy}>Save</button
@@ -257,14 +216,10 @@
               </div>
             {/each}
           </section>
-        {:else if tab === "rules"}
+        {:else if tab === "behavior"}
           <section class="block">
             <div class="setting-row limit-row">
-              <div>
-                <strong>Arena combat limit</strong><span
-                  >Used while alive or when life state is uncertain.</span
-                >
-              </div>
+              <strong>Throttled speed limit</strong>
               <label
                 ><input
                   type="number"
@@ -279,50 +234,43 @@
               >
             </div>
           </section>
-          <div class="list-heading"><span>Rules</span><span>Checked from top to bottom</span></div>
-          <section class="rule-list" role="list">
-            {#each snapshot.settings.rules as rule, index (rule.id)}
-              <div
-                class:disabled={!rule.enabled}
-                class:dragging={draggedRuleIndex === index}
-                class:drag-target={ruleDropIndex === index && draggedRuleIndex !== index}
-                class="rule-row"
-                role="listitem"
-                ondragover={(event) => allowRuleDrop(event, index)}
-                ondrop={(event) => dropRule(event, index)}
-              >
-                <button
-                  class="drag-handle"
-                  draggable="true"
-                  ondragstart={(event) => startRuleDrag(event, index)}
-                  ondragend={finishRuleDrag}
-                  onkeydown={(event) => moveRuleWithKeyboard(event, index)}
-                  aria-label={`Drag ${ruleNameLabel(rule)} to reorder`}
-                  title="Drag to reorder · Arrow keys also work"
-                >
-                  <svg viewBox="0 0 8 14" aria-hidden="true">
-                    <circle cx="2" cy="2" r="1" />
-                    <circle cx="6" cy="2" r="1" />
-                    <circle cx="2" cy="7" r="1" />
-                    <circle cx="6" cy="7" r="1" />
-                    <circle cx="2" cy="12" r="1" />
-                    <circle cx="6" cy="12" r="1" />
-                  </svg>
-                </button>
-                <label class="checkbox" title={rule.enabled ? "Disable rule" : "Enable rule"}
-                  ><input
-                    type="checkbox"
-                    bind:checked={rule.enabled}
-                    aria-label={`${rule.enabled ? "Disable" : "Enable"} ${ruleNameLabel(rule)}`}
-                  /><span></span></label
-                >
-                <div class="rule-copy">
-                  <strong>{ruleNameLabel(rule)}</strong>
-                  <span class="rule-summary"><b>When</b> {ruleConditionLabel(rule.condition)}</span>
-                  <span class="rule-result"><b>Steam</b> {actionLabel(rule.action)}</span>
-                </div>
-              </div>
-            {/each}
+          <div class="list-heading"><span>Arena</span></div>
+          <section class="block behavior-list">
+            <label class="behavior-row">
+              <span>Throttle while alive</span>
+              <input
+                class="behavior-checkbox"
+                type="checkbox"
+                bind:checked={snapshot.settings.throttleWhileAlive}
+              />
+            </label>
+            <label class="behavior-row">
+              <span>Download while dead</span>
+              <input
+                class="behavior-checkbox"
+                type="checkbox"
+                bind:checked={snapshot.settings.downloadWhileDead}
+              />
+            </label>
+            <label class="behavior-row">
+              <span>Download between rounds</span>
+              <input
+                class="behavior-checkbox"
+                type="checkbox"
+                bind:checked={snapshot.settings.downloadBetweenRounds}
+              />
+            </label>
+          </section>
+          <div class="list-heading"><span>Other modes</span></div>
+          <section class="block behavior-list">
+            <label class="behavior-row">
+              <span>Pause downloads during matches</span>
+              <input
+                class="behavior-checkbox"
+                type="checkbox"
+                bind:checked={snapshot.settings.pauseDuringOtherModes}
+              />
+            </label>
           </section>
         {:else}
           <div class="list-heading"><span>Application</span></div>

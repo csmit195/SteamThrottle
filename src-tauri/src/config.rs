@@ -1,4 +1,3 @@
-use crate::core::{Rule, default_rules};
 use serde::{Deserialize, Serialize};
 use std::{env, fs, io, path::PathBuf};
 
@@ -8,22 +7,28 @@ pub struct AppSettings {
     pub schema_version: u32,
     pub automation_enabled: bool,
     pub combat_limit_bytes_per_second: u64,
+    pub throttle_while_alive: bool,
+    pub download_while_dead: bool,
+    pub download_between_rounds: bool,
+    pub pause_during_other_modes: bool,
     pub restore_on_exit: bool,
     pub start_with_windows: bool,
     pub close_to_tray: bool,
-    pub rules: Vec<Rule>,
 }
 
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            schema_version: 1,
+            schema_version: 2,
             automation_enabled: false,
             combat_limit_bytes_per_second: 10_000_000,
+            throttle_while_alive: true,
+            download_while_dead: true,
+            download_between_rounds: true,
+            pause_during_other_modes: true,
             restore_on_exit: true,
             start_with_windows: false,
             close_to_tray: true,
-            rules: default_rules(),
         }
     }
 }
@@ -36,10 +41,12 @@ pub fn app_dir() -> PathBuf {
 }
 
 pub fn load() -> AppSettings {
-    fs::read_to_string(app_dir().join("settings.json"))
+    let mut settings: AppSettings = fs::read_to_string(app_dir().join("settings.json"))
         .ok()
         .and_then(|json| serde_json::from_str(&json).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    settings.schema_version = 2;
+    settings
 }
 
 pub fn save(settings: &AppSettings) -> io::Result<()> {

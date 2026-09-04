@@ -1,15 +1,5 @@
 import type { BandwidthAction, Observation } from "./types";
 
-const ruleConditions: Record<string, string> = {
-  idle: "League is outside a match",
-  loading: "A match is loading",
-  nonArenaMatch: "You are in a non-Arena match",
-  arenaPreparation: "Arena is between fights",
-  arenaCombatDead: "You are dead during Arena combat",
-  arenaCombat: "You are alive or uncertain during Arena combat",
-  always: "No earlier rule matches",
-};
-
 export function actionLabel(action: BandwidthAction): string {
   if (action.kind === "unlimited") return "Unlimited";
   if (action.kind === "pause") return "Downloads paused";
@@ -29,10 +19,6 @@ export function stateLabel(state: Observation): string {
   if (state.arenaPhase === "combat")
     return state.life === "dead" ? "Arena combat · dead" : "Arena combat";
   return "Arena phase uncertain";
-}
-
-export function ruleConditionLabel(condition: string): string {
-  return ruleConditions[condition] ?? condition;
 }
 
 export function ruleNameLabel(rule: { id: string; name: string }): string {

@@ -55,13 +55,12 @@ fn set_automation(
 #[tauri::command]
 fn save_policy(
     app: tauri::AppHandle,
-    mut settings: config::AppSettings,
+    settings: config::AppSettings,
     state: tauri::State<'_, runtime::RuntimeState>,
 ) -> Result<runtime::RuntimeSnapshot, String> {
     if !(128_000..=125_000_000).contains(&settings.combat_limit_bytes_per_second) {
-        return Err("Combat limit must be between 0.128 and 125 MB/s".into());
+        return Err("Throttled speed limit must be between 0.128 and 125 MB/s".into());
     }
-    runtime::apply_combat_limit(&mut settings);
     let autostart = app.autolaunch();
     if settings.start_with_windows {
         autostart.enable().map_err(|error| error.to_string())?;

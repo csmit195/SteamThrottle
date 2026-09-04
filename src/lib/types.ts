@@ -15,22 +15,17 @@ export interface Observation {
   life: "alive" | "dead" | "unknown";
   confidence: number;
 }
-export interface Rule {
-  id: string;
-  name: string;
-  enabled: boolean;
-  priority: number;
-  condition: string;
-  action: BandwidthAction;
-}
 export interface Settings {
   schemaVersion: number;
   automationEnabled: boolean;
   combatLimitBytesPerSecond: number;
+  throttleWhileAlive: boolean;
+  downloadWhileDead: boolean;
+  downloadBetweenRounds: boolean;
+  pauseDuringOtherModes: boolean;
   restoreOnExit: boolean;
   startWithWindows: boolean;
   closeToTray: boolean;
-  rules: Rule[];
 }
 export interface ActivityEntry {
   timestampMs: number;

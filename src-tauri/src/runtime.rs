@@ -1,8 +1,8 @@
 use crate::{
     config::AppSettings,
     core::{
-        BandwidthAction, ClientPhase, GameMode, ObservedGameState, RuleMatch, effective_action,
-        evaluate,
+        BandwidthAction, ClientPhase, GameMode, ObservedGameState, Rule, RuleMatch, default_rules,
+        effective_action, evaluate,
     },
     league::{fetch_lcu_phase, find_lcu_lockfile, parse_live_state},
     steam::{default_steam_path, discover_steam_path, invoke_steam_transition, running_steam_path},
@@ -42,11 +42,10 @@ pub struct RuntimeState {
 }
 
 impl RuntimeState {
-    pub fn new(mut settings: AppSettings) -> Self {
+    pub fn new(settings: AppSettings) -> Self {
         let steam_path = discover_steam_path();
-        apply_combat_limit(&mut settings);
         let observation = ObservedGameState::default();
-        let matched_rule = evaluate(&settings.rules, &observation);
+        let matched_rule = evaluate(&policy_rules(&settings), &observation);
         Self {
             inner: Mutex::new(RuntimeSnapshot {
                 observation,
@@ -70,14 +69,21 @@ impl RuntimeState {
     }
 }
 
-pub fn apply_combat_limit(settings: &mut AppSettings) {
-    for rule in &mut settings.rules {
-        if rule.id == "arena-combat" {
-            rule.action = BandwidthAction::Limit {
+pub fn policy_rules(settings: &AppSettings) -> Vec<Rule> {
+    let mut rules = default_rules();
+    for rule in &mut rules {
+        rule.action = match rule.id.as_str() {
+            "other-match" if !settings.pause_during_other_modes => BandwidthAction::Unlimited,
+            "arena-prep" if !settings.download_between_rounds => BandwidthAction::Pause,
+            "arena-dead" if !settings.download_while_dead => BandwidthAction::Pause,
+            "arena-combat" if !settings.throttle_while_alive => BandwidthAction::Unlimited,
+            "arena-combat" => BandwidthAction::Limit {
                 bytes_per_second: settings.combat_limit_bytes_per_second,
-            };
-        }
+            },
+            _ => rule.action.clone(),
+        };
     }
+    rules
 }
 
 fn refresh_processes(system: &mut System) {
@@ -187,7 +193,7 @@ pub fn spawn_monitor(app: AppHandle) {
                 if snapshot.steam_path.is_none() {
                     snapshot.adapter_health = "Steam not found".into();
                 }
-                let matched = evaluate(&snapshot.settings.rules, &observation);
+                let matched = evaluate(&policy_rules(&snapshot.settings), &observation);
                 let desired = matched.action.clone();
                 let effective = effective_action(&desired);
                 let current = snapshot.applied_action.clone();
@@ -275,4 +281,56 @@ pub fn spawn_monitor(app: AppHandle) {
             .await;
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::{ArenaPhase, LifeState};
+
+    #[test]
+    fn disabling_alive_throttling_allows_full_speed() {
+        let settings = AppSettings {
+            throttle_while_alive: false,
+            ..AppSettings::default()
+        };
+        let state = ObservedGameState::arena(ArenaPhase::Combat, LifeState::Alive);
+        assert_eq!(
+            evaluate(&policy_rules(&settings), &state).action,
+            BandwidthAction::Unlimited
+        );
+    }
+
+    #[test]
+    fn arena_download_preferences_control_dead_and_between_round_states() {
+        let settings = AppSettings {
+            download_while_dead: false,
+            download_between_rounds: false,
+            ..AppSettings::default()
+        };
+
+        let dead = ObservedGameState::arena(ArenaPhase::Combat, LifeState::Dead);
+        let between = ObservedGameState::arena(ArenaPhase::Preparation, LifeState::Alive);
+        assert_eq!(
+            evaluate(&policy_rules(&settings), &dead).action,
+            BandwidthAction::Pause
+        );
+        assert_eq!(
+            evaluate(&policy_rules(&settings), &between).action,
+            BandwidthAction::Pause
+        );
+    }
+
+    #[test]
+    fn non_arena_preference_can_allow_full_speed() {
+        let settings = AppSettings {
+            pause_during_other_modes: false,
+            ..AppSettings::default()
+        };
+        let state = ObservedGameState::league_match(GameMode::Other);
+        assert_eq!(
+            evaluate(&policy_rules(&settings), &state).action,
+            BandwidthAction::Unlimited
+        );
+    }
 }

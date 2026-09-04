@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "Steam Throttle",
-        "width": 740,
-        "height": 470,
+        "width": 680,
+        "height": 420,
         "resizable": false,
         "maximizable": false,
         "decorations": false,
