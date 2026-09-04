@@ -10,7 +10,10 @@
     "core:window:allow-set-focus",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://csmit195.com" }]
+      "allow": [
+        { "url": "https://csmit195.com" },
+        { "url": "https://github.com/csmit195/SteamThrottle" }
+      ]
     },
     "autostart:allow-enable",
     "autostart:allow-disable",

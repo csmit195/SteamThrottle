@@ -27,7 +27,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdGOTYxMEQ3REI1NjdCMjAKUldRZ2UxYmIxeENXZnprQTFrVmFnTGUrSHdMV29VMDBlY1l0NjZrZ09VamhXN1hNYkYrVENhc28K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM4OEJCQTNEOTI1MUFENjQKUldSa3JWR1NQYnFMT08zajkzR25lWHBoUFNIaEVFQ0pWN0dwTzJnekJKSmNKOW5Ha1REbENBWDgK",
       "endpoints": [
         "https://github.com/csmit195/SteamThrottle/releases/latest/download/latest.json"
       ]
@@ -36,8 +36,9 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "publisher": "Steam Throttle contributors",
-    "copyright": "Copyright © 2026 Steam Throttle contributors",
+    "createUpdaterArtifacts": true,
+    "publisher": "csmit195",
+    "copyright": "Copyright © 2026 csmit195 and contributors",
     "shortDescription": "Steam download throttling for League players",
     "longDescription": "A native Steam download throttler for League of Legends players.",
     "windows": {

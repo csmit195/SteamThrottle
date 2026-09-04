@@ -28,7 +28,6 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: SteamThrottle ${{ github.ref_name }}
+          releaseName: Steam Throttle ${{ github.ref_name }}
           releaseDraft: true
           prerelease: false
-          args: --config '{"bundle":{"createUpdaterArtifacts":"v1Compatible"}}'

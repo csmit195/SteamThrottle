@@ -72,9 +72,9 @@
     void invoke("quit_app");
   }
 
-  function openWebsite(event: MouseEvent) {
+  function openExternal(event: MouseEvent, url: string) {
     event.preventDefault();
-    void openUrl("https://csmit195.com");
+    void openUrl(url);
   }
 
   onMount(() => {
@@ -164,7 +164,7 @@
           <span>{message}</span><button onclick={() => (message = "")}>×</button>
         </div>{/if}
 
-      <div class="content">
+      <div class:overview={tab === "overview" && snapshot !== null} class="content">
         {#if !snapshot}
           <div class="loading">
             <span></span><strong>Connecting</strong><small
@@ -190,7 +190,7 @@
 
           <section class="details">
             <div>
-              <span>Applied</span><strong
+              <span>Status</span><strong
                 >{snapshot.appliedAction ? actionLabel(snapshot.appliedAction) : "Waiting"}</strong
               >
             </div>
@@ -305,20 +305,25 @@
               /></label
             >
           </section>
-          <button
-            class="button update-button"
-            onclick={() => utility("check_for_update")}
-            disabled={busy}>Check updates</button
-          >
+          <div class="settings-actions">
+            <button class="button" onclick={() => utility("check_for_update")} disabled={busy}
+              >Check updates</button
+            >
+            <a
+              href="https://github.com/csmit195/SteamThrottle"
+              onclick={(event) => openExternal(event, "https://github.com/csmit195/SteamThrottle")}
+              >View on GitHub</a
+            >
+          </div>
         {/if}
       </div>
 
       <footer>
         <span class:online={snapshot?.automationEnabled} class="footer-dot"></span><span
           >{snapshot ? stateLabel(snapshot.observation) : "Connecting"}</span
-        ><span class="spacer"></span><span>by</span><a
+        ><span class="spacer"></span><span>Steam wrangled by</span><a
           href="https://csmit195.com"
-          onclick={openWebsite}>csmit195</a
+          onclick={(event) => openExternal(event, "https://csmit195.com")}>csmit195</a
         ><span class="footer-divider"></span><span>v0.1.0</span>
       </footer>
     </section>

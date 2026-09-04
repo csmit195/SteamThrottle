@@ -2,6 +2,14 @@
   "name": "steamthrottle",
   "version": "0.1.0",
   "description": "A native Steam download throttler for League of Legends players.",
+  "homepage": "https://github.com/csmit195/SteamThrottle",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/csmit195/SteamThrottle.git"
+  },
+  "overrides": {
+    "cookie": "0.7.2"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite dev",

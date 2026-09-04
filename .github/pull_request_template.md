@@ -1,14 +1,10 @@
 ## What changed
 
-<!-- Explain the user-visible behavior and why. -->
+Describe the focused change and why it is needed.
 
 ## Verification
 
-- [ ] `npm test`
-- [ ] `npm run check`
-- [ ] `npm run build`
-- [ ] `cargo fmt --check`
-- [ ] `cargo clippy -- -D warnings`
-- [ ] `cargo test`
-- [ ] Any telemetry fixtures are sanitized
-- [ ] Steam state is restored after the scenario
+- [ ] Frontend formatting, tests, checks, and build pass
+- [ ] Rust formatting, Clippy, and tests pass
+- [ ] No personal data or credentials are included
+- [ ] State-classification or Steam-control changes include regression tests
