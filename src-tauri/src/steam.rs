@@ -4,6 +4,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
+use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 use windows_sys::Win32::{
     System::Threading::{AttachThreadInput, GetCurrentThreadId},
     UI::WindowsAndMessaging::{
@@ -97,6 +98,35 @@ pub fn default_steam_path() -> Option<PathBuf> {
     .find(|path| path.is_file())
 }
 
+fn select_steam_path(
+    running_path: Option<PathBuf>,
+    installed_fallback: Option<PathBuf>,
+) -> Option<PathBuf> {
+    running_path.or(installed_fallback)
+}
+
+pub fn running_steam_path(system: &System) -> Option<PathBuf> {
+    system.processes().values().find_map(|process| {
+        process
+            .name()
+            .eq_ignore_ascii_case("steam.exe")
+            .then(|| process.exe())
+            .flatten()
+            .filter(|path| path.is_file())
+            .map(Path::to_path_buf)
+    })
+}
+
+pub fn discover_steam_path() -> Option<PathBuf> {
+    let mut system = System::new();
+    let _ = system.refresh_processes_specifics(
+        ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::nothing().with_exe(UpdateKind::OnlyIfNotSet),
+    );
+    select_steam_path(running_steam_path(&system), default_steam_path())
+}
+
 pub fn parse_latest_throttle(log: &str) -> Option<BandwidthAction> {
     let marker = "Current download throttle rate: ";
     let kbps = log
@@ -135,10 +165,6 @@ pub fn read_current_throttle(steam_path: &Path) -> io::Result<Option<BandwidthAc
         .join("logs")
         .join("console_log.txt");
     std::fs::read_to_string(log_path).map(|log| parse_latest_throttle(&log))
-}
-
-pub fn invoke_steam(steam_path: &Path, action: &BandwidthAction) -> io::Result<()> {
-    invoke_steam_transition(steam_path, None, action)
 }
 
 pub fn invoke_steam_transition(
@@ -238,5 +264,15 @@ mod tests {
         assert!(!should_restore_foreground(0, 44));
         assert!(!should_restore_foreground(44, 44));
         assert!(should_restore_foreground(44, 91));
+    }
+
+    #[test]
+    fn running_steam_path_takes_priority_over_an_installed_fallback() {
+        let running = PathBuf::from(r"D:\Portable\Steam\steam.exe");
+        let installed = PathBuf::from(r"C:\Program Files (x86)\Steam\steam.exe");
+        assert_eq!(
+            select_steam_path(Some(running.clone()), Some(installed)),
+            Some(running)
+        );
     }
 }

@@ -1,15 +1,15 @@
 use crate::{
     config::AppSettings,
     core::{
-        BandwidthAction, ClientPhase, GameMode, ObservedGameState, RuleMatch, evaluate,
-        safe_effective_action,
+        BandwidthAction, ClientPhase, GameMode, ObservedGameState, RuleMatch, effective_action,
+        evaluate,
     },
     league::{fetch_lcu_phase, find_lcu_lockfile, parse_live_state},
-    steam::{default_steam_path, invoke_steam_transition},
+    steam::{default_steam_path, discover_steam_path, invoke_steam_transition, running_steam_path},
 };
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::Mutex, time::Duration};
-use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,9 +43,7 @@ pub struct RuntimeState {
 
 impl RuntimeState {
     pub fn new(mut settings: AppSettings) -> Self {
-        if settings.steam_path.is_none() {
-            settings.steam_path = default_steam_path();
-        }
+        let steam_path = discover_steam_path();
         apply_combat_limit(&mut settings);
         let observation = ObservedGameState::default();
         let matched_rule = evaluate(&settings.rules, &observation);
@@ -56,7 +54,7 @@ impl RuntimeState {
                 matched_rule,
                 applied_action: None,
                 baseline_action: None,
-                adapter_health: if settings.steam_path.is_some() {
+                adapter_health: if steam_path.is_some() {
                     "Ready"
                 } else {
                     "Steam not found"
@@ -64,7 +62,7 @@ impl RuntimeState {
                 .into(),
                 last_transition: None,
                 automation_enabled: settings.automation_enabled,
-                steam_path: settings.steam_path.clone(),
+                steam_path,
                 settings,
                 activity: Vec::new(),
             }),
@@ -86,7 +84,7 @@ fn refresh_processes(system: &mut System) {
     let _ = system.refresh_processes_specifics(
         ProcessesToUpdate::All,
         true,
-        ProcessRefreshKind::nothing(),
+        ProcessRefreshKind::nothing().with_exe(UpdateKind::OnlyIfNotSet),
     );
 }
 
@@ -150,6 +148,7 @@ pub fn spawn_monitor(app: AppHandle) {
 
         loop {
             refresh_processes(&mut system);
+            let detected_steam_path = running_steam_path(&system).or_else(default_steam_path);
             let running = league_running(&system);
             let observation = if !running {
                 let mut state = ObservedGameState::default();
@@ -184,12 +183,13 @@ pub fn spawn_monitor(app: AppHandle) {
             let (should_apply, steam_path, desired, automation) = {
                 let state = app.state::<RuntimeState>();
                 let mut snapshot = state.inner.lock().unwrap();
+                snapshot.steam_path = detected_steam_path;
+                if snapshot.steam_path.is_none() {
+                    snapshot.adapter_health = "Steam not found".into();
+                }
                 let matched = evaluate(&snapshot.settings.rules, &observation);
                 let desired = matched.action.clone();
-                // Steam exposes no reliable getter for its global pause gate. Until an
-                // active transfer proves the gate was enabled, emulate Pause safely.
-                let effective =
-                    safe_effective_action(&desired, snapshot.settings.hard_pause_enabled);
+                let effective = effective_action(&desired);
                 let current = snapshot.applied_action.clone();
                 let changed =
                     snapshot.observation != observation || snapshot.desired_action != desired;

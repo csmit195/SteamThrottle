@@ -14,8 +14,8 @@ No Overwolf, packet filtering, firewall rules, process injection, memory writing
 | League state | Steam behavior |
 | --- | --- |
 | Lobby, queue, champion select, or no match | Unlimited |
-| Game process loading; telemetry unavailable | Safe near-pause at 0.128 MB/s |
-| Non-Arena match | Safe near-pause at 0.128 MB/s |
+| Game process loading; telemetry unavailable | Paused |
+| Non-Arena match | Paused |
 | Arena preparation, shop, vote, or resolution | Unlimited |
 | Arena combat while alive or uncertain | 10.0 MB/s |
 | Arena combat while dead | Unlimited |
@@ -31,15 +31,13 @@ This is global Arena combat detection. A team sitting out may still be shown as 
 
 ## Steam control and safety
 
-Steam Throttle invokes the installed `steam.exe` directly with Valve's runtime console controls:
+Steam Throttle detects the executable path of the currently running `steam.exe`, including portable or non-default installations, and invokes it directly with Valve's runtime console controls:
 
 - `+set_download_throttle <Kbps> false`
 - `+get_download_throttle`
 - `+app_download_enable <0|1>`
 
-It never starts Steam. The previous throttle is captured before automation begins and restored when automation stops or you explicitly quit. Because Steam has no reliable getter for its global pause gate, an unknown gate is conservatively limited to 0.128 MB/s rather than risk resuming a download the user paused.
-
-Users can explicitly enable **Steam hard pause** in Settings. In that mode Steam Throttle owns pauses it applies and sets the next throttle before reopening the download gate, preventing an unlimited burst.
+It never starts Steam. If Steam is not running, the normal installed locations are used only as a fallback. The previous throttle is captured before automation begins and restored when automation stops or you explicitly quit. Pause rules use Steam's real download gate, and the next throttle is set before downloads are reopened.
 
 ## Build from source
 

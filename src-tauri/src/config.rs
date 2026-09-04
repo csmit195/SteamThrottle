@@ -7,12 +7,10 @@ use std::{env, fs, io, path::PathBuf};
 pub struct AppSettings {
     pub schema_version: u32,
     pub automation_enabled: bool,
-    pub steam_path: Option<PathBuf>,
     pub combat_limit_bytes_per_second: u64,
     pub restore_on_exit: bool,
     pub start_with_windows: bool,
     pub close_to_tray: bool,
-    pub hard_pause_enabled: bool,
     pub rules: Vec<Rule>,
 }
 
@@ -21,12 +19,10 @@ impl Default for AppSettings {
         Self {
             schema_version: 1,
             automation_enabled: false,
-            steam_path: None,
             combat_limit_bytes_per_second: 10_000_000,
             restore_on_exit: true,
             start_with_windows: false,
             close_to_tray: true,
-            hard_pause_enabled: false,
             rules: default_rules(),
         }
     }

@@ -82,11 +82,7 @@ input {
   flex-direction: column;
   background: #101114;
 }
-.automation-panel div {
-  min-width: 0;
-}
-.automation-panel strong,
-.automation-panel span {
+.automation-panel strong {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -145,17 +141,13 @@ input {
   grid-template-columns: 8px minmax(0, 1fr) 30px;
   align-items: center;
   gap: 8px;
-  height: 46px;
+  height: 36px;
   padding: 0 9px;
   background: #0b0c0f;
 }
 .automation-panel strong {
   font-size: 11px;
   line-height: 15px;
-}
-.automation-panel div span {
-  font-size: 9px;
-  color: #949ba4;
 }
 .presence,
 .footer-dot,
@@ -205,7 +197,7 @@ input {
 }
 .workspace {
   display: grid;
-  grid-template-rows: 40px minmax(0, 1fr) 30px;
+  grid-template-rows: 40px minmax(0, 1fr) 36px;
   min-width: 0;
   min-height: 0;
   background: #18191d;
@@ -470,8 +462,7 @@ input {
   letter-spacing: 0;
   text-transform: none;
 }
-.setting-row,
-.path-row {
+.setting-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -480,26 +471,20 @@ input {
   padding: 8px 12px;
   border-bottom: 1px solid #2d2f35;
 }
-.setting-row:last-child,
-.path-row:last-child {
+.setting-row:last-child {
   border: 0;
 }
-.setting-row div,
-.path-row div {
+.setting-row div {
   min-width: 0;
 }
 .setting-row strong,
-.setting-row div span,
-.path-row strong,
-.path-row div span {
+.setting-row div span {
   display: block;
 }
-.setting-row strong,
-.path-row strong {
+.setting-row strong {
   font-size: 11px;
 }
-.setting-row div span,
-.path-row div span {
+.setting-row div span {
   margin-top: 2px;
   color: #949ba4;
   font-size: 9px;
@@ -533,7 +518,7 @@ input {
 }
 .rule-row {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) 20px 54px;
+  grid-template-columns: 12px 20px minmax(0, 1fr);
   align-items: center;
   gap: 9px;
   min-height: 55px;
@@ -546,16 +531,35 @@ input {
 .rule-row.disabled {
   opacity: 0.45;
 }
-.order {
+.rule-row.dragging {
+  opacity: 0.3;
+}
+.rule-row.drag-target {
+  box-shadow: inset 0 2px #5865f2;
+}
+.drag-handle {
   display: grid;
+  width: 12px;
+  height: 28px;
+  padding: 0;
+  border: 0;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  color: #949ba4;
-  background: #16171b;
-  font-size: 10px;
-  font-weight: 700;
+  color: #686b73;
+  background: transparent;
+  cursor: grab;
+}
+.drag-handle:hover,
+.drag-handle:focus-visible {
+  color: #b5bac1;
+  outline: 0;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.drag-handle svg {
+  width: 8px;
+  height: 14px;
+  fill: currentColor;
 }
 .rule-copy {
   display: grid;
@@ -611,51 +615,13 @@ input {
   border-left: 2px solid #fff;
   transform: rotate(-45deg);
 }
-.move {
-  display: flex;
-  gap: 2px;
-}
-.move button {
-  width: 25px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: 3px;
-  color: #b5bac1;
-  background: #303238;
-  cursor: pointer;
-}
-.move button:hover {
-  color: #fff;
-  background: #4e5058;
-}
-.move button:disabled {
-  opacity: 0.2;
-  cursor: default;
-}
-.settings-list input:not([type]) {
-  width: min(55%, 330px);
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid #0d0e10;
-  border-radius: 3px;
-  outline: 0;
-  color: #dbdee1;
-  background: #0d0e10;
-  font-size: 10px;
-}
-.settings-list input:not([type]):focus {
-  border-color: #5865f2;
-}
 .native-toggle {
   width: 31px;
   height: 18px;
   accent-color: #5865f2;
 }
-.tool-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+.update-button {
+  margin-top: 13px;
 }
 .loading {
   display: flex;

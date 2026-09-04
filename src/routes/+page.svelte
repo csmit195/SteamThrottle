@@ -5,6 +5,7 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { actionLabel, ruleConditionLabel, ruleNameLabel, stateLabel } from "$lib/format";
+  import { reorderRules } from "$lib/rules";
   import type { RuntimeSnapshot } from "$lib/types";
 
   type Tab = "overview" | "rules" | "settings";
@@ -13,6 +14,8 @@
   let busy = $state(false);
   let message = $state("");
   let error = $state("");
+  let draggedRuleIndex = $state<number | null>(null);
+  let ruleDropIndex = $state<number | null>(null);
 
   const titles: Record<Tab, [string, string]> = {
     overview: ["Overview", "Live game and download state"],
@@ -77,13 +80,42 @@
     void openUrl("https://csmit195.com");
   }
 
-  function moveRule(index: number, direction: -1 | 1) {
+  function moveRule(fromIndex: number, toIndex: number) {
     if (!snapshot) return;
-    const target = index + direction;
-    if (target < 0 || target >= snapshot.settings.rules.length) return;
-    const rules = snapshot.settings.rules;
-    [rules[index], rules[target]] = [rules[target], rules[index]];
-    rules.forEach((rule, priority) => (rule.priority = priority));
+    snapshot.settings.rules = reorderRules(snapshot.settings.rules, fromIndex, toIndex);
+  }
+
+  function startRuleDrag(event: DragEvent, index: number) {
+    draggedRuleIndex = index;
+    ruleDropIndex = index;
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", String(index));
+    }
+  }
+
+  function allowRuleDrop(event: DragEvent, index: number) {
+    event.preventDefault();
+    ruleDropIndex = index;
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  }
+
+  function dropRule(event: DragEvent, index: number) {
+    event.preventDefault();
+    if (draggedRuleIndex !== null) moveRule(draggedRuleIndex, index);
+    draggedRuleIndex = null;
+    ruleDropIndex = null;
+  }
+
+  function finishRuleDrag() {
+    draggedRuleIndex = null;
+    ruleDropIndex = null;
+  }
+
+  function moveRuleWithKeyboard(event: KeyboardEvent, index: number) {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    event.preventDefault();
+    moveRule(index, index + (event.key === "ArrowUp" ? -1 : 1));
   }
 
   onMount(() => {
@@ -143,11 +175,7 @@
 
       <div class="automation-panel">
         <span class:online={snapshot?.automationEnabled} class="presence"></span>
-        <div>
-          <strong>{snapshot?.automationEnabled ? "Automation on" : "Automation off"}</strong><span
-            >{snapshot?.adapterHealth ?? "Starting…"}</span
-          >
-        </div>
+        <strong>{snapshot?.automationEnabled ? "Automation on" : "Automation off"}</strong>
         <button
           class:enabled={snapshot?.automationEnabled}
           class="toggle"
@@ -252,15 +280,35 @@
             </div>
           </section>
           <div class="list-heading"><span>Rules</span><span>Checked from top to bottom</span></div>
-          <section class="rule-list">
+          <section class="rule-list" role="list">
             {#each snapshot.settings.rules as rule, index (rule.id)}
-              <div class:disabled={!rule.enabled} class="rule-row">
-                <div class="order" title={`Priority ${index + 1}`}>{index + 1}</div>
-                <div class="rule-copy">
-                  <strong>{ruleNameLabel(rule)}</strong>
-                  <span class="rule-summary"><b>When</b> {ruleConditionLabel(rule.condition)}</span>
-                  <span class="rule-result"><b>Steam</b> {actionLabel(rule.action)}</span>
-                </div>
+              <div
+                class:disabled={!rule.enabled}
+                class:dragging={draggedRuleIndex === index}
+                class:drag-target={ruleDropIndex === index && draggedRuleIndex !== index}
+                class="rule-row"
+                role="listitem"
+                ondragover={(event) => allowRuleDrop(event, index)}
+                ondrop={(event) => dropRule(event, index)}
+              >
+                <button
+                  class="drag-handle"
+                  draggable="true"
+                  ondragstart={(event) => startRuleDrag(event, index)}
+                  ondragend={finishRuleDrag}
+                  onkeydown={(event) => moveRuleWithKeyboard(event, index)}
+                  aria-label={`Drag ${ruleNameLabel(rule)} to reorder`}
+                  title="Drag to reorder · Arrow keys also work"
+                >
+                  <svg viewBox="0 0 8 14" aria-hidden="true">
+                    <circle cx="2" cy="2" r="1" />
+                    <circle cx="6" cy="2" r="1" />
+                    <circle cx="2" cy="7" r="1" />
+                    <circle cx="6" cy="7" r="1" />
+                    <circle cx="2" cy="12" r="1" />
+                    <circle cx="6" cy="12" r="1" />
+                  </svg>
+                </button>
                 <label class="checkbox" title={rule.enabled ? "Disable rule" : "Enable rule"}
                   ><input
                     type="checkbox"
@@ -268,45 +316,15 @@
                     aria-label={`${rule.enabled ? "Disable" : "Enable"} ${ruleNameLabel(rule)}`}
                   /><span></span></label
                 >
-                <div class="move">
-                  <button
-                    onclick={() => moveRule(index, -1)}
-                    disabled={index === 0}
-                    aria-label="Move up">↑</button
-                  ><button
-                    onclick={() => moveRule(index, 1)}
-                    disabled={index === snapshot!.settings.rules.length - 1}
-                    aria-label="Move down">↓</button
-                  >
+                <div class="rule-copy">
+                  <strong>{ruleNameLabel(rule)}</strong>
+                  <span class="rule-summary"><b>When</b> {ruleConditionLabel(rule.condition)}</span>
+                  <span class="rule-result"><b>Steam</b> {actionLabel(rule.action)}</span>
                 </div>
               </div>
             {/each}
           </section>
         {:else}
-          <div class="list-heading"><span>Steam</span></div>
-          <section class="block settings-list">
-            <label class="path-row"
-              ><div><strong>Steam executable</strong><span>Direct path to steam.exe</span></div>
-              <input
-                value={snapshot.settings.steamPath ?? ""}
-                placeholder="C:\Program Files (x86)\Steam\steam.exe"
-                onchange={(event) =>
-                  (snapshot!.settings.steamPath = event.currentTarget.value || null)}
-              /></label
-            >
-            <label class="setting-row"
-              ><div>
-                <strong>Hard pause</strong><span
-                  >Use Steam's pause gate instead of the 0.128 MB/s fallback.</span
-                >
-              </div>
-              <input
-                class="native-toggle"
-                type="checkbox"
-                bind:checked={snapshot.settings.hardPauseEnabled}
-              /></label
-            >
-          </section>
           <div class="list-heading"><span>Application</span></div>
           <section class="block settings-list">
             <label class="setting-row"
@@ -340,18 +358,11 @@
               /></label
             >
           </section>
-          <div class="list-heading"><span>Tools</span></div>
-          <section class="tool-row">
-            <button class="button" onclick={() => utility("test_steam_connection")} disabled={busy}
-              >Test Steam</button
-            ><button class="button" onclick={() => utility("restore_steam_now")} disabled={busy}
-              >Restore now</button
-            ><button class="button" onclick={() => utility("export_diagnostics")} disabled={busy}
-              >Export diagnostics</button
-            ><button class="button" onclick={() => utility("check_for_update")} disabled={busy}
-              >Check updates</button
-            >
-          </section>
+          <button
+            class="button update-button"
+            onclick={() => utility("check_for_update")}
+            disabled={busy}>Check updates</button
+          >
         {/if}
       </div>
 

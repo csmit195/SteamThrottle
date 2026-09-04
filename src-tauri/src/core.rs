@@ -273,17 +273,8 @@ pub fn bytes_per_second_to_steam_kbps(bytes_per_second: u64) -> u64 {
     bytes_per_second.saturating_mul(8) / 1_000
 }
 
-pub fn safe_effective_action(
-    action: &BandwidthAction,
-    hard_pause_enabled: bool,
-) -> BandwidthAction {
-    if matches!(action, BandwidthAction::Pause) && !hard_pause_enabled {
-        BandwidthAction::Limit {
-            bytes_per_second: 128_000,
-        }
-    } else {
-        action.clone()
-    }
+pub fn effective_action(action: &BandwidthAction) -> BandwidthAction {
+    action.clone()
 }
 
 #[cfg(test)]
@@ -431,15 +422,9 @@ mod tests {
     }
 
     #[test]
-    fn hard_pause_requires_explicit_opt_in() {
+    fn pause_is_not_silently_converted_to_a_throttle() {
         assert_eq!(
-            safe_effective_action(&BandwidthAction::Pause, false),
-            BandwidthAction::Limit {
-                bytes_per_second: 128_000
-            }
-        );
-        assert_eq!(
-            safe_effective_action(&BandwidthAction::Pause, true),
+            effective_action(&BandwidthAction::Pause),
             BandwidthAction::Pause
         );
     }

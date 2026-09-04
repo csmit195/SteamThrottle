@@ -26,12 +26,10 @@ export interface Rule {
 export interface Settings {
   schemaVersion: number;
   automationEnabled: boolean;
-  steamPath: string | null;
   combatLimitBytesPerSecond: number;
   restoreOnExit: boolean;
   startWithWindows: boolean;
   closeToTray: boolean;
-  hardPauseEnabled: boolean;
   rules: Rule[];
 }
 export interface ActivityEntry {

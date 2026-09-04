@@ -71,72 +71,8 @@ fn save_policy(
     config::save(&settings).map_err(|error| error.to_string())?;
     let mut snapshot = state.inner.lock().unwrap();
     snapshot.automation_enabled = settings.automation_enabled;
-    snapshot.steam_path = settings.steam_path.clone();
     snapshot.settings = settings;
     Ok(snapshot.clone())
-}
-
-#[tauri::command]
-fn test_steam_connection(state: tauri::State<'_, runtime::RuntimeState>) -> Result<String, String> {
-    let path = state
-        .inner
-        .lock()
-        .unwrap()
-        .steam_path
-        .clone()
-        .ok_or("Steam executable not found")?;
-    let baseline = steam::read_current_throttle(&path)
-        .map_err(|error| error.to_string())?
-        .unwrap_or(core::BandwidthAction::Unlimited);
-    steam::invoke_steam(
-        &path,
-        &core::BandwidthAction::Limit {
-            bytes_per_second: 10_000_000,
-        },
-    )
-    .map_err(|error| error.to_string())?;
-    std::thread::sleep(std::time::Duration::from_millis(180));
-    steam::invoke_steam(&path, &baseline).map_err(|error| error.to_string())?;
-    Ok("Steam accepted 10.0 MB/s and the previous throttle was restored".into())
-}
-
-#[tauri::command]
-fn restore_steam_now(state: tauri::State<'_, runtime::RuntimeState>) -> Result<String, String> {
-    let path = state
-        .inner
-        .lock()
-        .unwrap()
-        .steam_path
-        .clone()
-        .ok_or("Steam executable not found")?;
-    let previous = state.inner.lock().unwrap().applied_action.clone();
-    let restore = state
-        .inner
-        .lock()
-        .unwrap()
-        .baseline_action
-        .clone()
-        .unwrap_or(core::BandwidthAction::Unlimited);
-    steam::invoke_steam_transition(&path, previous.as_ref(), &restore)
-        .map_err(|error| error.to_string())?;
-    state.inner.lock().unwrap().applied_action = Some(restore.clone());
-    Ok(format!("Steam restored: {:?}", restore))
-}
-
-#[tauri::command]
-fn export_diagnostics(state: tauri::State<'_, runtime::RuntimeState>) -> Result<String, String> {
-    let path = config::app_dir().join("diagnostics.json");
-    std::fs::create_dir_all(config::app_dir()).map_err(|error| error.to_string())?;
-    let mut snapshot = state.inner.lock().unwrap().clone();
-    snapshot.steam_path = snapshot
-        .steam_path
-        .as_ref()
-        .and_then(|path| path.file_name())
-        .map(std::path::PathBuf::from);
-    snapshot.settings.steam_path = None;
-    let json = serde_json::to_vec_pretty(&snapshot).map_err(|error| error.to_string())?;
-    std::fs::write(&path, json).map_err(|error| error.to_string())?;
-    Ok(path.display().to_string())
 }
 
 #[tauri::command]
@@ -237,9 +173,6 @@ pub fn run() {
             get_snapshot,
             set_automation,
             save_policy,
-            test_steam_connection,
-            restore_steam_now,
-            export_diagnostics,
             check_for_update,
             quit_app
         ])
