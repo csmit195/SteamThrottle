@@ -1,6 +1,6 @@
 [package]
 name = "steamthrottle"
-version = "0.1.0"
+version = "0.1.1"
 description = "A native Steam download throttler for League of Legends players."
 authors = ["csmit195 and contributors"]
 edition = "2024"

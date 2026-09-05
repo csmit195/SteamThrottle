@@ -69,6 +69,12 @@ jobs:
       - name: Test Rust
         run: cargo test
 
+      - name: Build production executable
+        run: ./ui/node_modules/.bin/tauri.cmd build --no-bundle
+
+      - name: Verify release startup without a development server
+        run: node scripts/smoke-release.mjs target/release/steamthrottle.exe
+
   audit:
     runs-on: ubuntu-latest
 

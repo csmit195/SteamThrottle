@@ -66,6 +66,10 @@ Requirements:
 
 Run the development app with `./scripts/dev.ps1`. The scripts keep Cargo's large build cache in `%LOCALAPPDATA%\SteamThrottle\build-cache` instead of the repository. Run `./scripts/clean.ps1` to remove generated frontend output and both local Cargo caches.
 
+Production executables must be built with the Tauri CLI. Plain `cargo build --release` still uses the development URL and produces an executable that cannot load its interface without Vite. To build an executable without an installer, run `./ui/node_modules/.bin/tauri.cmd build --no-bundle` from the repository root.
+
+CI and release builds run `node scripts/smoke-release.mjs <path-to-steamthrottle.exe>`. This Windows startup check copies the executable into a temporary directory, uses isolated settings with automation disabled, and verifies that the embedded interface renders and receives its backend snapshot without a development server. Node.js 22 and the WebView2 runtime are required.
+
 ## Repository layout
 
 ```text

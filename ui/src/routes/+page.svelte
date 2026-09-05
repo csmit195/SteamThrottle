@@ -324,7 +324,7 @@
         ><span class="spacer"></span><span>Steam wrangled by</span><a
           href="https://csmit195.com"
           onclick={(event) => openExternal(event, "https://csmit195.com")}>csmit195</a
-        ><span class="footer-divider"></span><span>v0.1.0</span>
+        ><span class="footer-divider"></span><span>v0.1.1</span>
       </footer>
     </section>
   </div>
