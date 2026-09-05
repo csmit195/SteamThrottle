@@ -49,8 +49,15 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         shell: pwsh
         run: ./ui/node_modules/.bin/tauri.cmd build --no-bundle
+      - name: Checkout release test harness
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tests
+          sparse-checkout: scripts/smoke-release.mjs
+          sparse-checkout-cone-mode: false
       - name: Verify release startup without a development server
-        run: node scripts/smoke-release.mjs target/release/steamthrottle.exe
+        run: node .release-tests/scripts/smoke-release.mjs target/release/steamthrottle.exe
       - name: Package portable executable
         shell: pwsh
         run: |

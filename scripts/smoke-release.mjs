@@ -14,8 +14,10 @@ assert.ok(process.argv[2], 'Usage: node scripts/smoke-release.mjs <executable>')
 const directory = await mkdtemp(join(tmpdir(), 'steamthrottle-smoke-'));
 let app;
 let socket;
+const policyKeys = [];
+const executableName = `steamthrottle-smoke-${process.pid}.exe`;
 try {
-  const executable = join(directory, 'steamthrottle.exe');
+  const executable = join(directory, executableName);
   await copyFile(resolve(process.argv[2]), executable);
   await mkdir(join(directory, 'SteamThrottle'));
   await writeFile(join(directory, 'SteamThrottle', 'settings.json'), JSON.stringify({
@@ -27,6 +29,23 @@ try {
   await once(portServer, 'listening');
   const port = portServer.address().port;
   await new Promise((resolve, reject) => portServer.close(error => error ? reject(error) : resolve()));
+
+  // Hosted Windows runners are elevated. WebView2 150+ ignores their
+  // environment overrides, but honors machine policies scoped to this exe.
+  // https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/security
+  if (process.env.GITHUB_ACTIONS === 'true') {
+    for (const [policy, value] of Object.entries({
+      AdditionalBrowserArguments: `--remote-debugging-port=${port}`,
+      UserDataFolder: join(directory, 'webview'),
+    })) {
+      const key = `HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge\\WebView2\\${policy}`;
+      const result = spawnSync('reg.exe', [
+        'add', key, '/v', executableName, '/t', 'REG_SZ', '/d', value, '/f',
+      ], { windowsHide: true, encoding: 'utf8' });
+      assert.equal(result.status, 0, `Cannot configure WebView2 test policy: ${result.stderr}`);
+      policyKeys.push(key);
+    }
+  }
 
   app = spawn(executable, [], {
     cwd: directory,
@@ -110,6 +129,12 @@ try {
   socket?.close();
   if (app?.pid && app.exitCode === null) {
     spawnSync('taskkill', ['/PID', String(app.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
+  }
+  for (const key of policyKeys) {
+    const result = spawnSync('reg.exe', ['delete', key, '/v', executableName, '/f'], {
+      windowsHide: true, encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, `Cannot remove WebView2 test policy: ${result.stderr}`);
   }
   // Only remove the uniquely created temporary test directory.
   const child = relative(resolve(tmpdir()), resolve(directory));
