@@ -1,7 +1,7 @@
 {
   "name": "steamthrottle-ui",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A native Steam download throttler for League of Legends players.",
   "homepage": "https://github.com/csmit195/SteamThrottle",
   "repository": {
@@ -37,7 +37,7 @@
     "prettier-plugin-svelte": "^3.4.0",
     "typescript": "~5.6.2",
     "vite": "^6.0.3",
-    "vitest": "^3.2.4",
+    "vitest": "^4.1.11",
     "@tauri-apps/cli": "^2"
   }
 }

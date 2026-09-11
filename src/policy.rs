@@ -201,13 +201,17 @@ pub fn default_rules() -> Vec<Rule> {
             "loading",
             "Game loading",
             RuleCondition::Loading,
-            BandwidthAction::Pause,
+            BandwidthAction::Limit {
+                bytes_per_second: 10_000_000,
+            },
         ),
         (
             "other-match",
             "Non-Arena match",
             RuleCondition::NonArenaMatch,
-            BandwidthAction::Pause,
+            BandwidthAction::Limit {
+                bytes_per_second: 10_000_000,
+            },
         ),
         (
             "arena-prep",
@@ -233,7 +237,9 @@ pub fn default_rules() -> Vec<Rule> {
             "fail-safe",
             "Unknown state",
             RuleCondition::Always,
-            BandwidthAction::Pause,
+            BandwidthAction::Limit {
+                bytes_per_second: 10_000_000,
+            },
         ),
     ];
     definitions
@@ -264,7 +270,7 @@ pub fn evaluate(rules: &[Rule], state: &ObservedGameState) -> RuleMatch {
         RuleMatch {
             rule_id: "internal-fail-safe".into(),
             rule_name: "Internal fail-safe".into(),
-            action: BandwidthAction::Pause,
+            action: BandwidthAction::Unlimited,
         }
     }
 }
@@ -380,10 +386,15 @@ mod tests {
     }
 
     #[test]
-    fn non_arena_matches_pause() {
+    fn non_arena_matches_use_the_default_limit() {
         let rules = default_rules();
         let state = ObservedGameState::league_match(GameMode::Other);
-        assert_eq!(evaluate(&rules, &state).action, BandwidthAction::Pause);
+        assert_eq!(
+            evaluate(&rules, &state).action,
+            BandwidthAction::Limit {
+                bytes_per_second: 10_000_000
+            }
+        );
     }
 
     #[test]
@@ -414,11 +425,11 @@ mod tests {
     }
 
     #[test]
-    fn malformed_policy_still_fails_safe() {
+    fn malformed_policy_never_pauses_downloads() {
         let state = ObservedGameState::league_match(GameMode::Unknown);
         let matched = evaluate(&[], &state);
         assert_eq!(matched.rule_id, "internal-fail-safe");
-        assert_eq!(matched.action, BandwidthAction::Pause);
+        assert_eq!(matched.action, BandwidthAction::Unlimited);
     }
 
     #[test]

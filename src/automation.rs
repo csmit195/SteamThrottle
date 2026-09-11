@@ -43,6 +43,7 @@ pub struct RuntimeSnapshot {
 
 pub struct RuntimeState {
     pub inner: Mutex<RuntimeSnapshot>,
+    pub steam_transition: Mutex<()>,
 }
 
 impl RuntimeState {
@@ -69,21 +70,25 @@ impl RuntimeState {
                 settings,
                 activity: Vec::new(),
             }),
+            steam_transition: Mutex::new(()),
         }
     }
 }
 
 pub fn policy_rules(settings: &AppSettings) -> Vec<Rule> {
     let mut rules = default_rules();
+    let configured_limit = BandwidthAction::Limit {
+        bytes_per_second: settings.combat_limit_bytes_per_second,
+    };
     for rule in &mut rules {
         rule.action = match rule.id.as_str() {
-            "other-match" if !settings.pause_during_other_modes => BandwidthAction::Unlimited,
-            "arena-prep" if !settings.download_between_rounds => BandwidthAction::Pause,
-            "arena-dead" if !settings.download_while_dead => BandwidthAction::Pause,
+            "loading" | "fail-safe" => configured_limit.clone(),
+            "other-match" if settings.pause_during_other_modes => BandwidthAction::Pause,
+            "other-match" => configured_limit.clone(),
+            "arena-prep" if !settings.download_between_rounds => configured_limit.clone(),
+            "arena-dead" if !settings.download_while_dead => configured_limit.clone(),
             "arena-combat" if !settings.throttle_while_alive => BandwidthAction::Unlimited,
-            "arena-combat" => BandwidthAction::Limit {
-                bytes_per_second: settings.combat_limit_bytes_per_second,
-            },
+            "arena-combat" => configured_limit.clone(),
             _ => rule.action.clone(),
         };
     }
@@ -133,6 +138,16 @@ fn restrictiveness(action: &BandwidthAction) -> u8 {
         BandwidthAction::Limit { .. } => 1,
         BandwidthAction::Pause => 2,
     }
+}
+
+fn transition_still_desired(
+    settings: &AppSettings,
+    observation: &ObservedGameState,
+    automation_enabled: bool,
+    proposed: &BandwidthAction,
+) -> bool {
+    automation_enabled
+        && effective_action(&evaluate(&policy_rules(settings), observation).action) == *proposed
 }
 
 pub fn spawn_monitor(app: AppHandle) {
@@ -249,28 +264,36 @@ pub fn spawn_monitor(app: AppHandle) {
             };
 
             if should_apply {
-                let previous = app
-                    .state::<RuntimeState>()
-                    .inner
-                    .lock()
-                    .unwrap()
-                    .applied_action
-                    .clone();
-                let result: Result<(), String> = steam_path
-                    .as_deref()
-                    .ok_or_else(|| "Steam executable not found".to_string())
-                    .and_then(|path| {
-                        invoke_steam_transition(path, previous.as_ref(), &desired)
-                            .map_err(|error| error.to_string())
-                    });
                 let state = app.state::<RuntimeState>();
-                let mut snapshot = state.inner.lock().unwrap();
-                match result {
-                    Ok(()) => {
-                        snapshot.applied_action = Some(desired);
-                        snapshot.adapter_health = "Connected".into();
+                let _transition_guard = state.steam_transition.lock().unwrap();
+                let (still_desired, previous) = {
+                    let snapshot = state.inner.lock().unwrap();
+                    (
+                        transition_still_desired(
+                            &snapshot.settings,
+                            &snapshot.observation,
+                            snapshot.automation_enabled,
+                            &desired,
+                        ),
+                        snapshot.applied_action.clone(),
+                    )
+                };
+                if still_desired {
+                    let result: Result<(), String> = steam_path
+                        .as_deref()
+                        .ok_or_else(|| "Steam executable not found".to_string())
+                        .and_then(|path| {
+                            invoke_steam_transition(path, previous.as_ref(), &desired)
+                                .map_err(|error| error.to_string())
+                        });
+                    let mut snapshot = state.inner.lock().unwrap();
+                    match result {
+                        Ok(()) => {
+                            snapshot.applied_action = Some(desired);
+                            snapshot.adapter_health = "Connected".into();
+                        }
+                        Err(error) => snapshot.adapter_health = error,
                     }
-                    Err(error) => snapshot.adapter_health = error,
                 }
             }
             if automation {
@@ -306,8 +329,38 @@ mod tests {
     }
 
     #[test]
-    fn arena_download_preferences_control_dead_and_between_round_states() {
+    fn loading_and_uncertain_states_use_the_configured_limit() {
         let settings = AppSettings {
+            combat_limit_bytes_per_second: 7_500_000,
+            ..AppSettings::default()
+        };
+        let rules = policy_rules(&settings);
+        let loading = ObservedGameState {
+            client_phase: ClientPhase::Loading,
+            mode: GameMode::Unknown,
+            arena_phase: None,
+            life: LifeState::Unknown,
+            confidence: 60,
+        };
+        let uncertain = ObservedGameState {
+            client_phase: ClientPhase::InGame,
+            mode: GameMode::Unknown,
+            arena_phase: None,
+            life: LifeState::Unknown,
+            confidence: 60,
+        };
+
+        let expected = BandwidthAction::Limit {
+            bytes_per_second: 7_500_000,
+        };
+        assert_eq!(evaluate(&rules, &loading).action, expected);
+        assert_eq!(evaluate(&rules, &uncertain).action, expected);
+    }
+
+    #[test]
+    fn disabled_arena_download_windows_fall_back_to_the_configured_limit() {
+        let settings = AppSettings {
+            combat_limit_bytes_per_second: 7_500_000,
             download_while_dead: false,
             download_between_rounds: false,
             ..AppSettings::default()
@@ -317,24 +370,70 @@ mod tests {
         let between = ObservedGameState::arena(ArenaPhase::Preparation, LifeState::Alive);
         assert_eq!(
             evaluate(&policy_rules(&settings), &dead).action,
-            BandwidthAction::Pause
+            BandwidthAction::Limit {
+                bytes_per_second: 7_500_000
+            }
         );
         assert_eq!(
             evaluate(&policy_rules(&settings), &between).action,
-            BandwidthAction::Pause
+            BandwidthAction::Limit {
+                bytes_per_second: 7_500_000
+            }
         );
     }
 
     #[test]
-    fn non_arena_preference_can_allow_full_speed() {
+    fn non_arena_pause_is_explicit_and_otherwise_uses_the_limit() {
         let settings = AppSettings {
+            combat_limit_bytes_per_second: 7_500_000,
             pause_during_other_modes: false,
             ..AppSettings::default()
         };
         let state = ObservedGameState::league_match(GameMode::Other);
         assert_eq!(
             evaluate(&policy_rules(&settings), &state).action,
-            BandwidthAction::Unlimited
+            BandwidthAction::Limit {
+                bytes_per_second: 7_500_000
+            }
         );
+
+        let pause_settings = AppSettings {
+            pause_during_other_modes: true,
+            ..settings
+        };
+        assert_eq!(
+            evaluate(&policy_rules(&pause_settings), &state).action,
+            BandwidthAction::Pause
+        );
+    }
+
+    #[test]
+    fn stale_pause_is_rejected_after_the_pause_setting_is_disabled() {
+        let state = ObservedGameState::league_match(GameMode::Other);
+        let settings = AppSettings {
+            pause_during_other_modes: false,
+            ..AppSettings::default()
+        };
+
+        assert!(!transition_still_desired(
+            &settings,
+            &state,
+            true,
+            &BandwidthAction::Pause,
+        ));
+    }
+
+    #[test]
+    fn pending_transition_is_rejected_after_automation_is_disabled() {
+        let state = ObservedGameState::league_match(GameMode::Other);
+
+        assert!(!transition_still_desired(
+            &AppSettings::default(),
+            &state,
+            false,
+            &BandwidthAction::Limit {
+                bytes_per_second: 10_000_000,
+            },
+        ));
     }
 }

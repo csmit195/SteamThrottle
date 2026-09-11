@@ -1,0 +1,8 @@
+{
+  "name": "steamthrottle",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev.ps1"
+  }
+}

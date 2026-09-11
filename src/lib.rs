@@ -23,6 +23,7 @@ fn set_automation(
     enabled: bool,
     state: tauri::State<'_, automation::RuntimeState>,
 ) -> Result<automation::RuntimeSnapshot, String> {
+    let _transition_guard = state.steam_transition.lock().unwrap();
     let (was_enabled, steam_path) = {
         let snapshot = state.inner.lock().unwrap();
         (snapshot.automation_enabled, snapshot.steam_path.clone())
@@ -68,6 +69,7 @@ fn save_policy(
     } else if autostart.is_enabled().unwrap_or(false) {
         autostart.disable().map_err(|error| error.to_string())?;
     }
+    let _transition_guard = state.steam_transition.lock().unwrap();
     settings::save(&settings).map_err(|error| error.to_string())?;
     let mut snapshot = state.inner.lock().unwrap();
     snapshot.automation_enabled = settings.automation_enabled;
@@ -90,12 +92,6 @@ async fn check_for_update(app: tauri::AppHandle) -> Result<String, String> {
         )),
         None => Ok("Steam Throttle is up to date".into()),
     }
-}
-
-#[tauri::command]
-fn quit_app(app: tauri::AppHandle) {
-    restore_best_effort(&app);
-    app.exit(0);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -173,8 +169,7 @@ pub fn run() {
             get_snapshot,
             set_automation,
             save_policy,
-            check_for_update,
-            quit_app
+            check_for_update
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -209,6 +204,7 @@ fn show_main_window(app: &tauri::AppHandle) {
 
 fn restore_best_effort(app: &tauri::AppHandle) {
     let state = app.state::<automation::RuntimeState>();
+    let _transition_guard = state.steam_transition.lock().unwrap();
     let snapshot = state.inner.lock().unwrap();
     if snapshot.settings.restore_on_exit
         && let Some(path) = snapshot.steam_path.as_deref()

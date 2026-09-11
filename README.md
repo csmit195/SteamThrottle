@@ -23,10 +23,10 @@ The default Arena behavior is:
 | Arena combat while alive                       | Limited to 10 MB/s   |
 | Arena combat while dead                        | Unlimited            |
 | Revived during combat                          | Limited immediately  |
-| Other League modes                             | Paused for the match |
-| Loading or uncertain telemetry                 | Paused               |
+| Other League modes                             | Limited to 10 MB/s   |
+| Loading or uncertain telemetry                 | Limited to 10 MB/s   |
 
-The limit and each major behavior can be changed in the app. Steam Throttle captures the existing Steam limit before automation begins and restores it when automation is disabled or the app exits normally.
+The limit and each major behavior can be changed in the app. Pausing is an explicit alternative for non-Arena matches; otherwise restrictive states use the configured bandwidth limit. Steam Throttle captures the existing Steam limit before automation begins and restores it when automation is disabled or the app exits normally.
 
 ## How it works
 

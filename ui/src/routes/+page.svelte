@@ -5,14 +5,23 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { actionLabel, automationStatusLabel, ruleNameLabel, stateLabel } from "$lib/format";
-  import type { RuntimeSnapshot } from "$lib/types";
+  import { reconcileSettingsDraft } from "$lib/settings-draft";
+  import BandwidthControl from "$lib/BandwidthControl.svelte";
+  import type { RuntimeSnapshot, Settings } from "$lib/types";
 
   type Tab = "overview" | "behavior" | "settings";
   let tab = $state<Tab>("overview");
   let snapshot = $state<RuntimeSnapshot | null>(null);
+  let settingsDraft = $state<Settings | null>(null);
+  let settingsDirty = $state(false);
   let busy = $state(false);
-  let message = $state("");
-  let error = $state("");
+  let updateStatus = $state<"idle" | "checking" | "current" | "available" | "error">("idle");
+  let automationFailed = $state(false);
+  let connectionFailed = $state(false);
+  let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  let settingsRevision = 0;
+  let settingsSaving = false;
+  let bandwidthInteracting = false;
 
   const titles: Record<Tab, [string, string]> = {
     overview: ["Overview", "Live game and download state"],
@@ -21,20 +30,17 @@
   };
 
   async function call<T>(command: string, args: Record<string, unknown> = {}): Promise<T> {
-    error = "";
-    try {
-      return await invoke<T>(command, args);
-    } catch (reason) {
-      error = String(reason);
-      throw reason;
-    }
+    return invoke<T>(command, args);
   }
 
   async function toggleAutomation() {
     if (!snapshot || busy) return;
     busy = true;
+    automationFailed = false;
     try {
-      snapshot = await call("set_automation", { enabled: !snapshot.automationEnabled });
+      acceptSnapshot(await call("set_automation", { enabled: !snapshot.automationEnabled }));
+    } catch {
+      automationFailed = true;
     } finally {
       busy = false;
       await getCurrentWindow()
@@ -44,21 +50,37 @@
   }
 
   async function saveSettings() {
-    if (!snapshot || busy) return;
-    busy = true;
+    if (!snapshot || !settingsDraft || settingsSaving || bandwidthInteracting) return;
+    settingsSaving = true;
+    const revision = settingsRevision;
+    const settings = {
+      ...settingsDraft,
+      automationEnabled: snapshot.automationEnabled,
+    };
     try {
-      snapshot.settings.automationEnabled = snapshot.automationEnabled;
-      snapshot = await call("save_policy", { settings: snapshot.settings });
-      message = "Changes saved";
+      const saved = await call<RuntimeSnapshot>("save_policy", { settings });
+      if (revision === settingsRevision) {
+        settingsDirty = false;
+        acceptSnapshot(saved);
+      } else {
+        acceptSnapshot(saved);
+      }
+    } catch {
+      // Keep the draft dirty so a later edit can retry the save.
     } finally {
-      busy = false;
+      settingsSaving = false;
+      if (revision !== settingsRevision && !bandwidthInteracting) queueSettingsSave(0);
     }
   }
 
-  async function utility(command: string) {
+  async function checkForUpdates() {
     busy = true;
+    updateStatus = "checking";
     try {
-      message = await call<string>(command);
+      const result = await call<string>("check_for_update");
+      updateStatus = result.toLowerCase().includes("up to date") ? "current" : "available";
+    } catch {
+      updateStatus = "error";
     } finally {
       busy = false;
     }
@@ -68,8 +90,54 @@
     void getCurrentWindow().minimize();
   }
 
-  function exitApp() {
-    void invoke("quit_app");
+  function closeWindow() {
+    void getCurrentWindow()
+      .close()
+      .catch(() => {});
+  }
+
+  function acceptSnapshot(value: RuntimeSnapshot) {
+    snapshot = value;
+    settingsDraft = reconcileSettingsDraft(settingsDraft, settingsDirty, value.settings);
+  }
+
+  function markSettingsDirty() {
+    settingsDirty = true;
+    settingsRevision += 1;
+    queueSettingsSave();
+  }
+
+  function beginBandwidthInteraction() {
+    bandwidthInteracting = true;
+    if (saveTimer === null) return;
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+
+  function markBandwidthDirty() {
+    settingsDirty = true;
+    settingsRevision += 1;
+  }
+
+  function commitBandwidth() {
+    bandwidthInteracting = false;
+    if (settingsDirty) queueSettingsSave(0);
+  }
+
+  function queueSettingsSave(delay = 350) {
+    if (saveTimer !== null) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      saveTimer = null;
+      void saveSettings();
+    }, delay);
+  }
+
+  function updateButtonLabel() {
+    if (updateStatus === "checking") return "Checking…";
+    if (updateStatus === "current") return "Up to date";
+    if (updateStatus === "available") return "Update available";
+    if (updateStatus === "error") return "Check failed";
+    return "Check now";
   }
 
   function openExternal(event: MouseEvent, url: string) {
@@ -80,16 +148,18 @@
   onMount(() => {
     const cleanups: Array<() => void> = [];
     call<RuntimeSnapshot>("get_snapshot")
-      .then((value) => (snapshot = value))
-      .catch(() => {});
-    listen<RuntimeSnapshot>("state-changed", (event) => (snapshot = event.payload)).then((stop) =>
+      .then(acceptSnapshot)
+      .catch(() => (connectionFailed = true));
+    listen<RuntimeSnapshot>("state-changed", (event) => acceptSnapshot(event.payload)).then(
+      (stop) => cleanups.push(stop),
+    );
+    listen<string>("update-available", () => (updateStatus = "available")).then((stop) =>
       cleanups.push(stop),
     );
-    listen<string>(
-      "update-available",
-      (event) => (message = `Version ${event.payload} is available`),
-    ).then((stop) => cleanups.push(stop));
-    return () => cleanups.forEach((stop) => stop());
+    return () => {
+      cleanups.forEach((stop) => stop());
+      if (saveTimer !== null) clearTimeout(saveTimer);
+    };
   });
 </script>
 
@@ -102,7 +172,7 @@
       <button onclick={minimizeWindow} aria-label="Minimize" title="Minimize">
         <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.5h8" /></svg>
       </button>
-      <button class="close" onclick={exitApp} aria-label="Exit" title="Exit">
+      <button class="close" onclick={closeWindow} aria-label="Close" title="Close">
         <svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 2.5 7 7m0-7-7 7" /></svg>
       </button>
     </div>
@@ -140,7 +210,11 @@
           disabled={!snapshot || busy}
           aria-label="Toggle automation"><span></span></button
         >
-        <span>{automationStatusLabel(snapshot?.automationEnabled ?? false)}</span>
+        <span
+          >{automationFailed
+            ? "Couldn't update"
+            : automationStatusLabel(snapshot?.automationEnabled ?? false)}</span
+        >
       </div>
     </aside>
 
@@ -150,25 +224,16 @@
           <h1>{titles[tab][0]}</h1>
           <span>{titles[tab][1]}</span>
         </div>
-        {#if (tab === "behavior" || tab === "settings") && snapshot}<button
-            class="button primary"
-            onclick={saveSettings}
-            disabled={busy}>Save</button
-          >{/if}
       </header>
-
-      {#if error}<div class="toast danger" role="alert">
-          <span>{error}</span><button onclick={() => (error = "")}>×</button>
-        </div>{/if}
-      {#if message}<div class="toast">
-          <span>{message}</span><button onclick={() => (message = "")}>×</button>
-        </div>{/if}
 
       <div class:overview={tab === "overview" && snapshot !== null} class="content">
         {#if !snapshot}
           <div class="loading">
-            <span></span><strong>Connecting</strong><small
-              >Reading local League and Steam state</small
+            <span></span><strong>{connectionFailed ? "Connection failed" : "Connecting"}</strong
+            ><small
+              >{connectionFailed
+                ? "Restart Steam Throttle and try again"
+                : "Reading local League and Steam state"}</small
             >
           </div>
         {:else if tab === "overview"}
@@ -215,105 +280,170 @@
               </div>
             {/each}
           </section>
-        {:else if tab === "behavior"}
-          <section class="block">
-            <div class="setting-row limit-row">
-              <strong>Throttled speed limit</strong>
-              <label
-                ><input
-                  type="number"
-                  min="0.128"
-                  max="125"
-                  step="0.5"
-                  value={snapshot.settings.combatLimitBytesPerSecond / 1_000_000}
-                  onchange={(event) =>
-                    (snapshot!.settings.combatLimitBytesPerSecond =
-                      Number(event.currentTarget.value) * 1_000_000)}
-                /><span>MB/s</span></label
-              >
-            </div>
-          </section>
-          <div class="list-heading"><span>Arena</span></div>
-          <section class="block behavior-list">
-            <label class="behavior-row">
-              <span>Throttle while alive</span>
-              <input
-                class="behavior-checkbox"
-                type="checkbox"
-                bind:checked={snapshot.settings.throttleWhileAlive}
-              />
-            </label>
-            <label class="behavior-row">
-              <span>Download while dead</span>
-              <input
-                class="behavior-checkbox"
-                type="checkbox"
-                bind:checked={snapshot.settings.downloadWhileDead}
-              />
-            </label>
-            <label class="behavior-row">
-              <span>Download between rounds</span>
-              <input
-                class="behavior-checkbox"
-                type="checkbox"
-                bind:checked={snapshot.settings.downloadBetweenRounds}
-              />
-            </label>
-          </section>
-          <div class="list-heading"><span>Other modes</span></div>
-          <section class="block behavior-list">
-            <label class="behavior-row">
-              <span>Pause downloads during matches</span>
-              <input
-                class="behavior-checkbox"
-                type="checkbox"
-                bind:checked={snapshot.settings.pauseDuringOtherModes}
-              />
-            </label>
-          </section>
-        {:else}
-          <div class="list-heading"><span>Application</span></div>
-          <section class="block settings-list">
-            <label class="setting-row"
-              ><div>
-                <strong>Restore on exit</strong><span>Return Steam to its captured throttle.</span>
+        {:else if tab === "behavior" && settingsDraft}
+          <div class="settings-page">
+            <section class="settings-section">
+              <div class="settings-section-title">Bandwidth</div>
+              <div class="settings-panel">
+                <div class="setting-row limit-row">
+                  <div>
+                    <strong>Gameplay bandwidth limit</strong>
+                    <span>Used whenever downloads need to be restricted without pausing.</span>
+                  </div>
+                  <BandwidthControl
+                    value={settingsDraft.combatLimitBytesPerSecond}
+                    onchange={(bytesPerSecond) => {
+                      settingsDraft!.combatLimitBytesPerSecond = bytesPerSecond;
+                      markBandwidthDirty();
+                    }}
+                    oninteractionstart={beginBandwidthInteraction}
+                    oncommit={commitBandwidth}
+                  />
+                </div>
               </div>
-              <input
-                class="native-toggle"
-                type="checkbox"
-                bind:checked={snapshot.settings.restoreOnExit}
-              /></label
-            >
-            <label class="setting-row"
-              ><div>
-                <strong>Close to tray</strong><span>Keep monitoring after closing the window.</span>
+            </section>
+
+            <section class="settings-section">
+              <div class="settings-section-title">Arena</div>
+              <div class="settings-panel">
+                <label class="setting-row">
+                  <div>
+                    <strong>Throttle while alive</strong>
+                    <span>Turn off to allow full download speed during combat.</span>
+                  </div>
+                  <input
+                    class="native-toggle"
+                    type="checkbox"
+                    bind:checked={settingsDraft.throttleWhileAlive}
+                    onchange={markSettingsDirty}
+                  />
+                </label>
+                <label class="setting-row">
+                  <div>
+                    <strong>Download while dead</strong>
+                    <span>Turn off to use the gameplay limit while dead.</span>
+                  </div>
+                  <input
+                    class="native-toggle"
+                    type="checkbox"
+                    bind:checked={settingsDraft.downloadWhileDead}
+                    onchange={markSettingsDirty}
+                  />
+                </label>
+                <label class="setting-row">
+                  <div>
+                    <strong>Download between rounds</strong>
+                    <span>Turn off to use the gameplay limit during downtime.</span>
+                  </div>
+                  <input
+                    class="native-toggle"
+                    type="checkbox"
+                    bind:checked={settingsDraft.downloadBetweenRounds}
+                    onchange={markSettingsDirty}
+                  />
+                </label>
               </div>
-              <input
-                class="native-toggle"
-                type="checkbox"
-                bind:checked={snapshot.settings.closeToTray}
-              /></label
-            >
-            <label class="setting-row"
-              ><div>
-                <strong>Start with Windows</strong><span>Launch silently when you sign in.</span>
+            </section>
+
+            <section class="settings-section">
+              <div class="settings-section-title">Other game modes</div>
+              <div class="settings-panel">
+                <label class="setting-row">
+                  <div>
+                    <strong>Pause downloads</strong>
+                    <span>Turn off to throttle to the gameplay limit instead.</span>
+                  </div>
+                  <input
+                    class="native-toggle"
+                    type="checkbox"
+                    bind:checked={settingsDraft.pauseDuringOtherModes}
+                    onchange={markSettingsDirty}
+                  />
+                </label>
               </div>
-              <input
-                class="native-toggle"
-                type="checkbox"
-                bind:checked={snapshot.settings.startWithWindows}
-              /></label
-            >
-          </section>
-          <div class="settings-actions">
-            <button class="button" onclick={() => utility("check_for_update")} disabled={busy}
-              >Check updates</button
-            >
-            <a
-              href="https://github.com/csmit195/SteamThrottle"
-              onclick={(event) => openExternal(event, "https://github.com/csmit195/SteamThrottle")}
-              >View on GitHub</a
-            >
+            </section>
+          </div>
+        {:else if settingsDraft}
+          <div class="settings-page">
+            <section class="settings-section">
+              <div class="settings-section-title">Window and startup</div>
+              <div class="settings-panel">
+                <label class="setting-row">
+                  <div>
+                    <strong>Close to tray</strong>
+                    <span>Keep monitoring when the window is closed.</span>
+                  </div>
+                  <input
+                    class="native-toggle"
+                    type="checkbox"
+                    bind:checked={settingsDraft.closeToTray}
+                    onchange={markSettingsDirty}
+                  />
+                </label>
+                <label class="setting-row">
+                  <div>
+                    <strong>Start with Windows</strong>
+                    <span>Launch quietly after signing in.</span>
+                  </div>
+                  <input
+                    class="native-toggle"
+                    type="checkbox"
+                    bind:checked={settingsDraft.startWithWindows}
+                    onchange={markSettingsDirty}
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section class="settings-section">
+              <div class="settings-section-title">Steam</div>
+              <div class="settings-panel">
+                <label class="setting-row">
+                  <div>
+                    <strong>Restore previous limit on exit</strong>
+                    <span>Put Steam back the way it was before automation started.</span>
+                  </div>
+                  <input
+                    class="native-toggle"
+                    type="checkbox"
+                    bind:checked={settingsDraft.restoreOnExit}
+                    onchange={markSettingsDirty}
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section class="settings-section">
+              <div class="settings-section-title">About</div>
+              <div class="settings-panel">
+                <div class="setting-row action-row">
+                  <div>
+                    <strong>Software updates</strong>
+                    <span>Check GitHub Releases for a newer version.</span>
+                  </div>
+                  <button
+                    class="compact-button"
+                    class:status-success={updateStatus === "current"}
+                    class:status-notice={updateStatus === "available"}
+                    class:status-error={updateStatus === "error"}
+                    onclick={checkForUpdates}
+                    disabled={busy}>{updateButtonLabel()}</button
+                  >
+                </div>
+                <div class="setting-row action-row">
+                  <div>
+                    <strong>Steam Throttle</strong>
+                    <span>Source code, releases, and issue tracker.</span>
+                  </div>
+                  <button
+                    class="compact-button"
+                    onclick={(event) =>
+                      openExternal(event, "https://github.com/csmit195/SteamThrottle")}
+                    >Open GitHub</button
+                  >
+                </div>
+              </div>
+            </section>
           </div>
         {/if}
       </div>
@@ -324,7 +454,7 @@
         ><span class="spacer"></span><span>Steam wrangled by</span><a
           href="https://csmit195.com"
           onclick={(event) => openExternal(event, "https://csmit195.com")}>csmit195</a
-        ><span class="footer-divider"></span><span>v0.1.1</span>
+        ><span class="footer-divider"></span><span>v0.1.2</span>
       </footer>
     </section>
   </div>
